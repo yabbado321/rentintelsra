@@ -153,6 +153,8 @@ Search the web for the most current rental market data, demographics, schools, c
       data = m ? JSON.parse(m[0]) : {};
     }
 
+    if (geo) data.geo = { lat: geo.lat, lng: geo.lon, displayName: geo.displayName };
+
     return new Response(JSON.stringify(data), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
