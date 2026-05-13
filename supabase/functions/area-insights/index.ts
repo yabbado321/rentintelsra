@@ -2,9 +2,27 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 interface Body {
   zip: string;
+  address?: string;
   beds?: number;
   baths?: number;
   sqft?: number;
+}
+
+interface GeoResult {
+  lat: number;
+  lon: number;
+  displayName: string;
+}
+
+async function geocode(query: string): Promise<GeoResult | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'RentIntel/1.0 (lovable.app)' } });
+    if (!res.ok) return null;
+    const arr = await res.json();
+    if (!arr?.length) return null;
+    return { lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon), displayName: arr[0].display_name };
+  } catch { return null; }
 }
 
 const SYSTEM = `You are a US real-estate market analyst with access to live web search.
