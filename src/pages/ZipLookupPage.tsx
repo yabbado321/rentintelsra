@@ -98,7 +98,15 @@ export default function ZipLookupPage() {
       </div>
 
       {/* Inputs */}
-      <div className="bg-card rounded-xl p-6 border border-border">
+      <div className="bg-card rounded-xl p-6 border border-border space-y-4">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Property Address <span className="text-muted-foreground/60">(optional — unlocks Street View, comps & rent-max strategy)</span></label>
+          <input
+            type="text" value={address} onChange={(e) => setAddress(e.target.value)}
+            className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+            placeholder="123 Main St, Beverly Hills"
+          />
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">ZIP Code</label>
@@ -126,11 +134,11 @@ export default function ZipLookupPage() {
           </div>
         </div>
         <button onClick={analyze} disabled={loading}
-          className="mt-4 px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2 disabled:opacity-50">
+          className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2 disabled:opacity-50">
           {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Researching live data...</> : <>🔍 Analyze Area</>}
         </button>
         {error && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
+          <div className="flex items-center gap-2 text-sm text-destructive">
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
