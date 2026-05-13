@@ -2,8 +2,9 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle } from "lucide-react";
+import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Eye } from "lucide-react";
 
+interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; }
 interface AreaData {
   area: { city: string; state: string; county: string; neighborhoodSummary: string };
   rentEstimates: {
@@ -31,6 +32,18 @@ interface AreaData {
     rentToIncomeRatioPct: number; investorScore: number;
   };
   justification: string[];
+  geo?: { lat: number; lng: number; displayName: string };
+  property?: {
+    addressNormalized: string; yearBuilt: number; lotSizeSqft: number;
+    estimatedValue: number; lastSoldPrice: number; lastSoldYear: number;
+    propertyType: string; neighborhood: string;
+    nearbyComps: Comp[];
+    rentMaxStrategy: {
+      recommendedRent: number; premiumRent: number; tips: string[];
+      amenityValueAdds: { feature: string; monthlyValue: number }[];
+      seasonalTiming: string; marketingAngles: string[];
+    };
+  };
 }
 
 const fmtCurrency = (n: number) =>
@@ -39,6 +52,7 @@ const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n || 0);
 
 export default function ZipLookupPage() {
   const [zipCode, setZipCode] = useState("");
+  const [address, setAddress] = useState("");
   const [beds, setBeds] = useState(2);
   const [baths, setBaths] = useState(1);
   const [sqft, setSqft] = useState(1000);
@@ -56,7 +70,7 @@ export default function ZipLookupPage() {
     setData(null);
     try {
       const { data: res, error: fnErr } = await supabase.functions.invoke("area-insights", {
-        body: { zip: zipCode, beds, baths, sqft },
+        body: { zip: zipCode, address: address.trim() || undefined, beds, baths, sqft },
       });
       if (fnErr) throw fnErr;
       if (res?.error) throw new Error(res.error);
