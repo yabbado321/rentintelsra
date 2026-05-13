@@ -1,33 +1,86 @@
 import { useState } from "react";
-import { computeRent } from "@/lib/calculations";
+import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle } from "lucide-react";
+
+interface AreaData {
+  area: { city: string; state: string; county: string; neighborhoodSummary: string };
+  rentEstimates: {
+    studio: number; oneBed: number; twoBed: number; threeBed: number; fourBed: number;
+    medianOverall: number; pricePerSqft: number; subjectEstimate: number;
+    rangeLow: number; rangeHigh: number; yoyChangePct: number; sources: string[];
+  };
+  demographics: {
+    population: number; medianHouseholdIncome: number; medianAge: number;
+    ownerOccupiedPct: number; renterOccupiedPct: number; populationGrowth5yPct: number;
+  };
+  economy: {
+    unemploymentPct: number; majorEmployers: string[]; jobGrowthPct: number;
+    medianHomePrice: number; homeAppreciation1yPct: number;
+  };
+  livability: {
+    walkScore: number; transitScore: number; bikeScore: number;
+    crimeIndex: string; schoolRating: number; topSchools: string[];
+  };
+  amenities: {
+    groceryStores: string[]; parks: string[]; restaurants: string[]; hospitals: string[];
+  };
+  rentalDemand: {
+    vacancyRatePct: number; avgDaysOnMarket: number; demandLevel: string;
+    rentToIncomeRatioPct: number; investorScore: number;
+  };
+  justification: string[];
+}
+
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n || 0);
+const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n || 0);
 
 export default function ZipLookupPage() {
   const [zipCode, setZipCode] = useState("");
   const [beds, setBeds] = useState(2);
   const [baths, setBaths] = useState(1);
   const [sqft, setSqft] = useState(1000);
-  const [results, setResults] = useState<ReturnType<typeof computeRent> | null>(null);
+  const [data, setData] = useState<AreaData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const analyze = () => {
-    if (!zipCode) return;
-    // No SAFMR data loaded client-side, use feature estimate only
-    const result = computeRent(null, beds, baths, sqft);
-    setResults(result);
+  const analyze = async () => {
+    if (!zipCode || zipCode.length !== 5) {
+      setError("Enter a valid 5-digit ZIP code");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setData(null);
+    try {
+      const { data: res, error: fnErr } = await supabase.functions.invoke("area-insights", {
+        body: { zip: zipCode, beds, baths, sqft },
+      });
+      if (fnErr) throw fnErr;
+      if (res?.error) throw new Error(res.error);
+      setData(res as AreaData);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch area data");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const chartData = results ? [
-    { name: "HUD SAFMR", value: results.safmrRent ?? 0, color: "#4ade80" },
-    { name: "Feature Est.", value: results.featureRent, color: "#60a5fa" },
-    { name: "Blended", value: results.blendedRent, color: "#facc15" },
+  const rentChart = data ? [
+    { name: "Studio", value: data.rentEstimates.studio },
+    { name: "1 Bed", value: data.rentEstimates.oneBed },
+    { name: "2 Bed", value: data.rentEstimates.twoBed },
+    { name: "3 Bed", value: data.rentEstimates.threeBed },
+    { name: "4 Bed", value: data.rentEstimates.fourBed },
   ] : [];
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold">📍 ZIP Rent Lookup</h1>
-        <p className="text-muted-foreground mt-1">Estimate rent based on property features and location.</p>
+        <p className="text-muted-foreground mt-1">Live market data sourced from the web — everything that justifies rent in this ZIP.</p>
       </div>
 
       {/* Inputs */}
@@ -36,9 +89,7 @@ export default function ZipLookupPage() {
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">ZIP Code</label>
             <input
-              type="text"
-              maxLength={5}
-              value={zipCode}
+              type="text" maxLength={5} value={zipCode}
               onChange={(e) => setZipCode(e.target.value.replace(/\D/g, ""))}
               className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               placeholder="e.g. 90210"
@@ -46,101 +97,178 @@ export default function ZipLookupPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Bedrooms</label>
-            <input
-              type="number"
-              min={0}
-              value={beds}
-              onChange={(e) => setBeds(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-            />
+            <input type="number" min={0} value={beds} onChange={(e) => setBeds(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Bathrooms</label>
-            <input
-              type="number"
-              min={0}
-              value={baths}
-              onChange={(e) => setBaths(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-            />
+            <input type="number" min={0} value={baths} onChange={(e) => setBaths(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Square Footage</label>
-            <input
-              type="number"
-              min={0}
-              step={50}
-              value={sqft}
-              onChange={(e) => setSqft(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-            />
+            <input type="number" min={0} step={50} value={sqft} onChange={(e) => setSqft(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
           </div>
         </div>
-        <button
-          onClick={analyze}
-          className="mt-4 px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 transition-all"
-        >
-          🔍 Analyze Rent Estimates
+        <button onClick={analyze} disabled={loading}
+          className="mt-4 px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2 disabled:opacity-50">
+          {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Researching live data...</> : <>🔍 Analyze Area</>}
         </button>
+        {error && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
+            <AlertCircle className="w-4 h-4" /> {error}
+          </div>
+        )}
       </div>
 
-      {/* Results */}
-      {results && (
+      {data && (
         <div className="space-y-6 animate-fade-in">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard
-              label="HUD SAFMR"
-              value={results.safmrRent ? `$${results.safmrRent.toLocaleString()}` : "N/A"}
-              subtitle="Government fair market rent"
-            />
-            <MetricCard
-              label="Feature Estimate"
-              value={`$${results.featureRent.toLocaleString()}`}
-              subtitle="Based on property features"
-            />
-            <MetricCard
-              label="Blended Estimate"
-              value={`$${results.blendedRent.toLocaleString()}`}
-              subtitle="Weighted average"
-              variant="success"
-            />
-          </div>
-
-          {/* Confidence */}
-          <div className="bg-card rounded-xl p-5 border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Confidence Level</span>
-              <span className="text-sm font-bold" style={{ color: results.confColor }}>
-                {results.confText} ({results.confPct}%)
-              </span>
-            </div>
-            <div className="w-full bg-secondary rounded-full h-3">
-              <div
-                className="h-3 rounded-full transition-all duration-500"
-                style={{ width: `${results.confPct}%`, backgroundColor: results.confColor }}
-              />
-            </div>
-          </div>
-
-          {/* Chart */}
+          {/* Header summary */}
           <div className="bg-card rounded-xl p-6 border border-border">
-            <h3 className="text-lg font-semibold mb-4">📊 Rent Estimate Breakdown</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
+            <div className="flex items-center gap-2 mb-2">
+              <MapPin className="w-5 h-5 text-primary" />
+              <h2 className="text-2xl font-bold">{data.area.city}, {data.area.state} <span className="text-muted-foreground text-base font-normal">· {data.area.county}</span></h2>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">{data.area.neighborhoodSummary}</p>
+          </div>
+
+          {/* Subject estimate */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <MetricCard label="Subject Estimate" value={fmtCurrency(data.rentEstimates.subjectEstimate)}
+              subtitle={`${beds}bd/${baths}ba · ${sqft}sqft`} variant="success" />
+            <MetricCard label="Rent Range" value={`${fmtCurrency(data.rentEstimates.rangeLow)} – ${fmtCurrency(data.rentEstimates.rangeHigh)}`} subtitle="Low to high market" />
+            <MetricCard label="Median Rent" value={fmtCurrency(data.rentEstimates.medianOverall)} subtitle="Across all unit types" />
+            <MetricCard label="YoY Change" value={`${data.rentEstimates.yoyChangePct > 0 ? "+" : ""}${data.rentEstimates.yoyChangePct.toFixed(1)}%`}
+              subtitle="Year-over-year" variant={data.rentEstimates.yoyChangePct >= 0 ? "success" : "warning"} />
+          </div>
+
+          {/* Rent by unit type */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4">📊 Market Rent by Unit Type</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={rentChart}>
                 <XAxis dataKey="name" stroke="hsl(240, 5%, 55%)" fontSize={12} />
-                <YAxis stroke="hsl(240, 5%, 55%)" fontSize={12} />
+                <YAxis stroke="hsl(240, 5%, 55%)" fontSize={12} tickFormatter={(v) => `$${v}`} />
                 <Tooltip
                   contentStyle={{ background: "hsl(240, 5%, 13%)", border: "1px solid hsl(240, 4%, 20%)", borderRadius: 8 }}
-                  labelStyle={{ color: "hsl(0, 0%, 95%)" }}
+                  formatter={(v: number) => fmtCurrency(v)}
                 />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                  {rentChart.map((_, i) => (
+                    <Cell key={i} fill={`hsl(${142 + i * 8}, 70%, ${50 + i * 2}%)`} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <p className="text-xs text-muted-foreground mt-2">Price per sqft: <span className="font-mono text-foreground">${data.rentEstimates.pricePerSqft.toFixed(2)}</span></p>
           </div>
+
+          {/* Justification */}
+          <div className="bg-card rounded-xl p-6 border border-primary/30 glow-primary">
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> Why Rent Is What It Is</h3>
+            <ul className="space-y-2">
+              {data.justification.map((j, i) => (
+                <li key={i} className="text-sm text-foreground/90 flex gap-2">
+                  <span className="text-primary mt-1">▸</span><span>{j}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Demographics */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> Demographics</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <MetricCard label="Population" value={fmtNum(data.demographics.population)} />
+              <MetricCard label="Median Income" value={fmtCurrency(data.demographics.medianHouseholdIncome)} />
+              <MetricCard label="Median Age" value={`${data.demographics.medianAge}`} />
+              <MetricCard label="Owner Occupied" value={`${data.demographics.ownerOccupiedPct}%`} />
+              <MetricCard label="Renter Occupied" value={`${data.demographics.renterOccupiedPct}%`} />
+              <MetricCard label="5yr Pop Growth" value={`${data.demographics.populationGrowth5yPct > 0 ? "+" : ""}${data.demographics.populationGrowth5yPct}%`} />
+            </div>
+          </div>
+
+          {/* Economy */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Briefcase className="w-5 h-5 text-primary" /> Economy & Housing</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <MetricCard label="Unemployment" value={`${data.economy.unemploymentPct}%`} />
+              <MetricCard label="Job Growth" value={`${data.economy.jobGrowthPct}%`} />
+              <MetricCard label="Median Home Price" value={fmtCurrency(data.economy.medianHomePrice)} />
+              <MetricCard label="1yr Appreciation" value={`${data.economy.homeAppreciation1yPct > 0 ? "+" : ""}${data.economy.homeAppreciation1yPct}%`}
+                variant={data.economy.homeAppreciation1yPct >= 0 ? "success" : "warning"} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Major Employers</p>
+              <div className="flex flex-wrap gap-2">
+                {data.economy.majorEmployers.map((e, i) => (
+                  <span key={i} className="px-2.5 py-1 bg-secondary border border-border rounded-md text-xs">{e}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Livability */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><GraduationCap className="w-5 h-5 text-primary" /> Livability & Schools</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+              <MetricCard label="Walk Score" value={`${data.livability.walkScore}`} subtitle="/ 100" />
+              <MetricCard label="Transit Score" value={`${data.livability.transitScore}`} subtitle="/ 100" />
+              <MetricCard label="Bike Score" value={`${data.livability.bikeScore}`} subtitle="/ 100" />
+              <MetricCard label="Crime" value={data.livability.crimeIndex} />
+              <MetricCard label="School Rating" value={`${data.livability.schoolRating}/10`} />
+            </div>
+            {data.livability.topSchools?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Schools</p>
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-sm">
+                  {data.livability.topSchools.map((s, i) => <li key={i}>• {s}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Amenities */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-primary" /> Local Amenities</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+              {([["Grocery", data.amenities.groceryStores], ["Parks", data.amenities.parks],
+                 ["Restaurants", data.amenities.restaurants], ["Hospitals", data.amenities.hospitals]] as const).map(([title, list]) => (
+                <div key={title}>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{title}</p>
+                  <ul className="space-y-1">{list?.map((x, i) => <li key={i}>• {x}</li>)}</ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Rental Demand */}
+          <div className="bg-card rounded-xl p-6 border border-border">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> Rental Demand Signals</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <MetricCard label="Vacancy Rate" value={`${data.rentalDemand.vacancyRatePct}%`} />
+              <MetricCard label="Days on Market" value={`${data.rentalDemand.avgDaysOnMarket}`} />
+              <MetricCard label="Demand" value={data.rentalDemand.demandLevel} variant="success" />
+              <MetricCard label="Rent / Income" value={`${data.rentalDemand.rentToIncomeRatioPct}%`} />
+              <MetricCard label="Investor Score" value={`${data.rentalDemand.investorScore}/10`} variant="success" />
+            </div>
+          </div>
+
+          {/* Sources */}
+          {data.rentEstimates.sources?.length > 0 && (
+            <div className="bg-card rounded-xl p-5 border border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Sources</p>
+              <div className="flex flex-wrap gap-2">
+                {data.rentEstimates.sources.map((s, i) => (
+                  <a key={i} href={s} target="_blank" rel="noreferrer"
+                    className="text-xs text-primary hover:underline truncate max-w-xs">
+                    {s}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
