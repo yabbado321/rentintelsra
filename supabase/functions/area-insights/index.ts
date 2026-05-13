@@ -61,7 +61,30 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "rentToIncomeRatioPct": number,
     "investorScore": number      // 1-10
   },
-  "justification": string[]      // 4-6 bullet sentences explaining WHY rent in this ZIP is what it is
+  "justification": string[],     // 4-6 bullet sentences explaining WHY rent in this ZIP is what it is
+
+  // Only when an address is provided — otherwise omit:
+  "property"?: {
+    "addressNormalized": string,
+    "yearBuilt": number,
+    "lotSizeSqft": number,
+    "estimatedValue": number,
+    "lastSoldPrice": number,
+    "lastSoldYear": number,
+    "propertyType": string,
+    "neighborhood": string,
+    "nearbyComps": [
+      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number }
+    ],
+    "rentMaxStrategy": {
+      "recommendedRent": number,
+      "premiumRent": number,
+      "tips": string[],
+      "amenityValueAdds": [{ "feature": string, "monthlyValue": number }],
+      "seasonalTiming": string,
+      "marketingAngles": string[]
+    }
+  }
 }
 
 Use the most recent data you can. If unsure about a number, give a reasonable estimate but never null.`;
@@ -70,7 +93,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { zip, beds = 2, baths = 1, sqft = 1000 } = await req.json() as Body;
+    const { zip, address, beds = 2, baths = 1, sqft = 1000 } = await req.json() as Body;
     if (!zip || !/^\d{5}$/.test(zip)) {
       return new Response(JSON.stringify({ error: 'Valid 5-digit ZIP required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -80,11 +103,14 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
+    const geo = await geocode(address ? `${address}, ${zip}` : zip);
+
     const userPrompt = `ZIP code: ${zip}
+${address ? `Property address: ${address}` : ''}
 Subject property: ${beds} bed / ${baths} bath / ${sqft} sqft
 Today's date: ${new Date().toISOString().slice(0, 10)}
 
-Search the web for the most current rental market data, demographics, schools, crime, walkability, employers, and amenities for this ZIP. Return ONLY the JSON object — no prose, no markdown fences.`;
+Search the web for the most current rental market data, demographics, schools, crime, walkability, employers, and amenities for this ZIP.${address ? ` Also research the SPECIFIC property at the address — pull year built, lot size, last sale, 3-5 nearby comparable rentals, and craft a detailed rent-maximization strategy with concrete tips, value-add features with dollar amounts, optimal listing season, and listing headlines that justify premium pricing.` : ''} Return ONLY the JSON object — no prose, no markdown fences.`;
 
     const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
