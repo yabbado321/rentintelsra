@@ -91,50 +91,50 @@ export default function ZipLookupPage() {
   ] : [];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">📍 ZIP Rent Lookup</h1>
-        <p className="text-muted-foreground mt-1">Live market data sourced from the web — everything that justifies rent in this ZIP.</p>
-      </div>
+    <div className="space-y-7">
+      <header>
+        <h1 className="text-4xl font-bold font-display flex items-center gap-3">
+          <span className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center shadow-elegant">
+            <MapPin className="w-5 h-5 text-primary-foreground" />
+          </span>
+          ZIP Rent Lookup
+        </h1>
+        <p className="text-muted-foreground mt-2">Live area research, rent comps, demographics, and Street View — sourced from the web in real time.</p>
+      </header>
 
-      {/* Inputs */}
-      <div className="bg-card rounded-xl p-6 border border-border space-y-4">
+      <div className="panel space-y-4">
         <div>
-          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Property Address <span className="text-muted-foreground/60">(optional — unlocks Street View, comps & rent-max strategy)</span></label>
+          <label htmlFor="zl-addr" className="text-xs font-medium text-muted-foreground block mb-1.5">Property Address <span className="text-muted-foreground/60">(optional — unlocks Street View, comps & rent-max strategy)</span></label>
           <input
-            type="text" value={address} onChange={(e) => setAddress(e.target.value)}
-            className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+            id="zl-addr" type="text" value={address} onChange={(e) => setAddress(e.target.value)}
+            className="input-field"
             placeholder="123 Main St, Beverly Hills"
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">ZIP Code</label>
+            <label htmlFor="zl-zip" className="text-xs font-medium text-muted-foreground block mb-1.5">ZIP Code</label>
             <input
-              type="text" maxLength={5} value={zipCode}
+              id="zl-zip" type="text" maxLength={5} value={zipCode}
               onChange={(e) => setZipCode(e.target.value.replace(/\D/g, ""))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+              className="input-field font-mono"
               placeholder="e.g. 90210"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Bedrooms</label>
-            <input type="number" min={0} value={beds} onChange={(e) => setBeds(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+            <label htmlFor="zl-beds" className="text-xs font-medium text-muted-foreground block mb-1.5">Bedrooms</label>
+            <input id="zl-beds" type="number" min={0} value={beds} onChange={(e) => setBeds(Number(e.target.value))} className="input-field font-mono" />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Bathrooms</label>
-            <input type="number" min={0} value={baths} onChange={(e) => setBaths(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+            <label htmlFor="zl-baths" className="text-xs font-medium text-muted-foreground block mb-1.5">Bathrooms</label>
+            <input id="zl-baths" type="number" min={0} value={baths} onChange={(e) => setBaths(Number(e.target.value))} className="input-field font-mono" />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Square Footage</label>
-            <input type="number" min={0} step={50} value={sqft} onChange={(e) => setSqft(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-foreground text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+            <label htmlFor="zl-sqft" className="text-xs font-medium text-muted-foreground block mb-1.5">Square Footage</label>
+            <input id="zl-sqft" type="number" min={0} step={50} value={sqft} onChange={(e) => setSqft(Number(e.target.value))} className="input-field font-mono" />
           </div>
         </div>
-        <button onClick={analyze} disabled={loading}
-          className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2 disabled:opacity-50">
+        <button onClick={analyze} disabled={loading} className="btn-primary">
           {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Researching live data...</> : <>🔍 Analyze Area</>}
         </button>
         {error && (
@@ -300,9 +300,9 @@ export default function ZipLookupPage() {
                   contentStyle={{ background: "hsl(240, 5%, 13%)", border: "1px solid hsl(240, 4%, 20%)", borderRadius: 8 }}
                   formatter={(v: number) => fmtCurrency(v)}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {rentChart.map((_, i) => (
-                    <Cell key={i} fill={`hsl(${142 + i * 8}, 70%, ${50 + i * 2}%)`} />
+                    <Cell key={i} fill={`hsl(${244 + i * 6}, 75%, ${58 + i * 3}%)`} />
                   ))}
                 </Bar>
               </BarChart>
