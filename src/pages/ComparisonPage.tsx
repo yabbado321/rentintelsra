@@ -86,6 +86,7 @@ export default function ComparisonPage() {
                     <td className="px-4 py-3 text-right font-mono">{p.score.toFixed(1)}</td>
                     <td className="px-4 py-3">
                       <button onClick={() => setProperties(properties.filter((_, j) => j !== i))}
+                        aria-label={`Remove ${p.name || `property ${i + 1}`}`}
                         className="text-destructive hover:text-destructive/80 text-xs">🗑️</button>
                     </td>
                   </tr>
