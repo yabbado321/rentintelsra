@@ -1,0 +1,15 @@
+# RentIntel
+
+> Smart rental property analyzer with ROI projections, Monte Carlo simulations, ZIP-level rent lookups, tax insights, and side-by-side deal comparison.
+
+RentIntel helps real estate investors evaluate rental deals using institutional-grade tools — all client-side, no signup required.
+
+## Pages
+
+- [Home](/): Overview, features, and competitor comparison.
+- [ZIP Rent Lookup](/): Live area insights, rent estimates, demographics, and Street View for any address.
+- [Deal Analyzer](/): ROI, Cap Rate, Cash Flow, Deal Score, break-even, and tenant affordability.
+- [ROI & Taxes](/): Multi-year ROI with depreciation and tax savings.
+- [Comparison](/): Side-by-side analysis of multiple properties.
+- [Advanced Tools](/): Monte Carlo simulations and scenario modeling.
+- [Help & Legal](/): Financial glossary, methodology, and disclaimers.
