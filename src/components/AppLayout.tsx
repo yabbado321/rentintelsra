@@ -38,7 +38,7 @@ export default function AppLayout({ activePage, onPageChange, children }: AppLay
       `}>
         <div className="p-6 border-b border-sidebar-border">
           <div className="text-center">
-            <h1 className="text-xl font-bold text-foreground tracking-tight">🏡 RentIntel</h1>
+            <div className="text-xl font-bold text-foreground tracking-tight">🏡 RentIntel</div>
             <p className="text-xs text-muted-foreground mt-1">Smart Rental Analyzer</p>
           </div>
         </div>
