@@ -8,22 +8,24 @@ interface MetricCardProps {
   variant?: "default" | "success" | "warning" | "danger";
 }
 
-const variantStyles = {
-  default: "border-border",
-  success: "border-success/30",
-  warning: "border-warning/30",
-  danger: "border-destructive/30",
+const variantStyles: Record<NonNullable<MetricCardProps["variant"]>, string> = {
+  default: "",
+  success: "text-success",
+  warning: "text-warning",
+  danger: "text-destructive",
 };
 
 export default function MetricCard({ label, value, icon, subtitle, variant = "default" }: MetricCardProps) {
   return (
-    <div className={`metric-card ${variantStyles[variant]} transition-all hover:scale-[1.02]`}>
-      <div className="flex items-center gap-2 mb-1">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+    <div className="metric-card group">
+      <div className="flex items-center gap-2 mb-1.5">
+        {icon && <span className="text-primary/80">{icon}</span>}
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.14em]">{label}</span>
       </div>
-      <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
-      {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      <p className={`text-2xl font-bold font-mono tracking-tight ${variantStyles[variant] || "text-foreground"}`}>
+        {value}
+      </p>
+      {subtitle && <p className="text-xs text-muted-foreground/80 mt-1">{subtitle}</p>}
     </div>
   );
 }
