@@ -300,9 +300,9 @@ export default function ZipLookupPage() {
                   contentStyle={{ background: "hsl(240, 5%, 13%)", border: "1px solid hsl(240, 4%, 20%)", borderRadius: 8 }}
                   formatter={(v: number) => fmtCurrency(v)}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {rentChart.map((_, i) => (
-                    <Cell key={i} fill={`hsl(${142 + i * 8}, 70%, ${50 + i * 2}%)`} />
+                    <Cell key={i} fill={`hsl(${244 + i * 6}, 75%, ${58 + i * 3}%)`} />
                   ))}
                 </Bar>
               </BarChart>
