@@ -75,7 +75,7 @@ export default function AppLayout({ activePage, onPageChange, children }: AppLay
       <main className="flex-1 min-w-0">
         {/* Mobile header */}
         <header className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-background/80 backdrop-blur-lg border-b border-border lg:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-secondary">
+          <button onClick={() => setSidebarOpen(true)} aria-label={sidebarOpen ? "Close menu" : "Open menu"} className="p-2 rounded-lg hover:bg-secondary">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <span className="font-semibold text-sm">RentIntel</span>
