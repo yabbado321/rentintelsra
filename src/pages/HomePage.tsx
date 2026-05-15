@@ -222,7 +222,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               </li>
             ))}
           </ul>
-          <button onClick={() => onNavigate("zip")} className="btn-primary mt-6">
+          <button onClick={() => onNavigate("pricing")} className="btn-primary mt-6">
             Try AI Pricing <ArrowRight size={14} />
           </button>
         </div>
