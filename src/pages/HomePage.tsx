@@ -336,10 +336,12 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           Live demo runs against real market data. No signup, no implementation cycle — explore every workflow in under a minute.
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
-          <button onClick={() => onNavigate("zip")} className="btn-primary">
-            See Live Demo <ArrowRight size={16} />
+          <button onClick={() => onNavigate("dashboard")} className="btn-primary">
+            Open Dashboard <ArrowRight size={16} />
           </button>
-          <button onClick={() => onNavigate("deal")} className="btn-ghost">Try the Platform</button>
+          <button onClick={() => onNavigate("pricing")} className="btn-ghost">Try AI Pricing</button>
+          <button onClick={() => onNavigate("maintenance")} className="btn-ghost">Triage a Ticket</button>
+          <button onClick={() => onNavigate("comms")} className="btn-ghost">Draft a Reply</button>
           <a href="mailto:smart-rental-analyzer@outlook.com" className="btn-ghost">Talk to Sales</a>
         </div>
       </section>
