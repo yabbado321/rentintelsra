@@ -26,6 +26,8 @@ async function geocode(query: string): Promise<GeoResult | null> {
 }
 
 const SYSTEM = `You are a US real-estate market analyst with access to live web search.
+Accuracy is paramount. Cross-reference at least 3 independent sources (Zillow, Apartments.com, Rentometer, Realtor.com, RentCafe, Zumper, HUD FMR, Census ACS, BLS, GreatSchools, NeighborhoodScout) before stating any number. If sources disagree, return the median and widen the range. NEVER invent comp addresses — only return real listings you can cite. If you cannot verify a value, mark dataConfidence "Low" and widen rangeLow/rangeHigh.
+
 For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScript type:
 
 {
@@ -62,6 +64,8 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "investorScore": number      // 1-10
   },
   "justification": string[],     // 4-6 bullet sentences explaining WHY rent in this ZIP is what it is
+  "dataConfidence": "Low" | "Medium" | "High",
+  "lastUpdated": string,         // ISO date you sourced the data
 
   // Only when an address is provided — otherwise omit:
   "property"?: {
@@ -119,11 +123,12 @@ Search the web for the most current rental market data, demographics, schools, c
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'user', content: userPrompt },
         ],
+        temperature: 0.2,
         response_format: { type: 'json_object' },
       }),
     });
