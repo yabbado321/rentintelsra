@@ -71,14 +71,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
-              <button onClick={() => onNavigate("deal")} className="btn-primary">
-                Try the Platform <ArrowRight size={16} />
+              <button onClick={() => onNavigate("dashboard")} className="btn-primary">
+                Open Dashboard <ArrowRight size={16} />
               </button>
-              <button onClick={() => onNavigate("zip")} className="btn-ghost">
-                <Activity size={14} /> See Live Demo
+              <button onClick={() => onNavigate("pricing")} className="btn-ghost">
+                <TrendingUp size={14} /> Try AI Pricing
               </button>
-              <button onClick={() => onNavigate("comparison")} className="btn-ghost">
-                <BarChart3 size={14} /> View Dashboard
+              <button onClick={() => onNavigate("maintenance")} className="btn-ghost">
+                <Wrench size={14} /> Triage a Ticket
               </button>
             </div>
 
