@@ -16,12 +16,12 @@ const stats = [
 ];
 
 const modules = [
-  { icon: TrendingUp, title: "AI Rent Pricing", desc: "Real-time comp ingestion + demand signals recommend the rent that fills the unit fastest at the highest price." , page: "zip", tag: "Revenue" },
-  { icon: Wrench, title: "Maintenance Autopilot", desc: "Auto-triage tickets, dispatch the right vendor, track SLAs, and close the loop with the tenant.", page: "advanced", tag: "Operations" },
-  { icon: MessageSquare, title: "Tenant Comms Hub", desc: "Unified inbox across SMS, email, and portal — with AI replies tuned to your voice and lease terms.", page: "advanced", tag: "Retention" },
-  { icon: BarChart3, title: "Portfolio Analytics", desc: "Live NOI, delinquency, occupancy and cash-on-cash by property, region, or owner — drill anywhere.", page: "comparison", tag: "Insight" },
-  { icon: Bot, title: "Leasing Automation", desc: "AI leasing agent answers inquiries 24/7, screens applicants, and books showings on your calendar.", page: "deal", tag: "Growth" },
-  { icon: Calendar, title: "Renewal Forecasting", desc: "Predicts at-risk tenants 60 days out and auto-launches the right retention play.", page: "roi", tag: "Retention" },
+  { icon: TrendingUp, title: "AI Rent Pricing", desc: "Pull live comps for every unit and apply optimized rent in one click. Fully working." , page: "pricing", tag: "Revenue", live: true },
+  { icon: Wrench, title: "Maintenance Autopilot", desc: "Submit any tenant request — AI triages priority, vendor, SLA, and self-fix steps.", page: "maintenance", tag: "Operations", live: true },
+  { icon: MessageSquare, title: "Tenant Comms Hub", desc: "Paste a tenant message — get an on-brand, lease-aware reply with sentiment + churn risk.", page: "comms", tag: "Retention", live: true },
+  { icon: BarChart3, title: "Portfolio Dashboard", desc: "Live KPIs across every unit you've added — occupancy, revenue, NOI, AI activity feed.", page: "dashboard", tag: "Insight", live: true },
+  { icon: Bot, title: "Deal Analyzer", desc: "Underwrite an acquisition with cap rate, DSCR, ROI, and our deal score.", page: "deal", tag: "Acquisition" },
+  { icon: Calendar, title: "ZIP Market Lookup", desc: "Pull live rent estimates, demographics, schools, and rental demand for any US ZIP.", page: "zip", tag: "Research" },
 ];
 
 const testimonials = [
