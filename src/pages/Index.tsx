@@ -7,6 +7,10 @@ import ROITaxesPage from "./ROITaxesPage";
 import ComparisonPage from "./ComparisonPage";
 import AdvancedToolsPage from "./AdvancedToolsPage";
 import HelpLegalPage from "./HelpLegalPage";
+import PortfolioDashboardPage from "./PortfolioDashboardPage";
+import PricingToolPage from "./PricingToolPage";
+import MaintenancePage from "./MaintenancePage";
+import CommsPage from "./CommsPage";
 
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
@@ -14,6 +18,10 @@ export default function Index() {
   const renderPage = () => {
     switch (page) {
       case "home": return <HomePage onNavigate={(p) => setPage(p as Page)} />;
+      case "dashboard": return <PortfolioDashboardPage onNavigate={(p) => setPage(p as Page)} />;
+      case "pricing": return <PricingToolPage />;
+      case "maintenance": return <MaintenancePage />;
+      case "comms": return <CommsPage />;
       case "zip": return <ZipLookupPage />;
       case "deal": return <DealAnalyzerPage />;
       case "roi": return <ROITaxesPage />;

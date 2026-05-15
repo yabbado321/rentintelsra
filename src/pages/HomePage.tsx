@@ -16,12 +16,12 @@ const stats = [
 ];
 
 const modules = [
-  { icon: TrendingUp, title: "AI Rent Pricing", desc: "Real-time comp ingestion + demand signals recommend the rent that fills the unit fastest at the highest price." , page: "zip", tag: "Revenue" },
-  { icon: Wrench, title: "Maintenance Autopilot", desc: "Auto-triage tickets, dispatch the right vendor, track SLAs, and close the loop with the tenant.", page: "advanced", tag: "Operations" },
-  { icon: MessageSquare, title: "Tenant Comms Hub", desc: "Unified inbox across SMS, email, and portal — with AI replies tuned to your voice and lease terms.", page: "advanced", tag: "Retention" },
-  { icon: BarChart3, title: "Portfolio Analytics", desc: "Live NOI, delinquency, occupancy and cash-on-cash by property, region, or owner — drill anywhere.", page: "comparison", tag: "Insight" },
-  { icon: Bot, title: "Leasing Automation", desc: "AI leasing agent answers inquiries 24/7, screens applicants, and books showings on your calendar.", page: "deal", tag: "Growth" },
-  { icon: Calendar, title: "Renewal Forecasting", desc: "Predicts at-risk tenants 60 days out and auto-launches the right retention play.", page: "roi", tag: "Retention" },
+  { icon: TrendingUp, title: "AI Rent Pricing", desc: "Pull live comps for every unit and apply optimized rent in one click. Fully working." , page: "pricing", tag: "Revenue", live: true },
+  { icon: Wrench, title: "Maintenance Autopilot", desc: "Submit any tenant request — AI triages priority, vendor, SLA, and self-fix steps.", page: "maintenance", tag: "Operations", live: true },
+  { icon: MessageSquare, title: "Tenant Comms Hub", desc: "Paste a tenant message — get an on-brand, lease-aware reply with sentiment + churn risk.", page: "comms", tag: "Retention", live: true },
+  { icon: BarChart3, title: "Portfolio Dashboard", desc: "Live KPIs across every unit you've added — occupancy, revenue, NOI, AI activity feed.", page: "dashboard", tag: "Insight", live: true },
+  { icon: Bot, title: "Deal Analyzer", desc: "Underwrite an acquisition with cap rate, DSCR, ROI, and our deal score.", page: "deal", tag: "Acquisition" },
+  { icon: Calendar, title: "ZIP Market Lookup", desc: "Pull live rent estimates, demographics, schools, and rental demand for any US ZIP.", page: "zip", tag: "Research" },
 ];
 
 const testimonials = [
@@ -71,14 +71,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
-              <button onClick={() => onNavigate("deal")} className="btn-primary">
-                Try the Platform <ArrowRight size={16} />
+              <button onClick={() => onNavigate("dashboard")} className="btn-primary">
+                Open Dashboard <ArrowRight size={16} />
               </button>
-              <button onClick={() => onNavigate("zip")} className="btn-ghost">
-                <Activity size={14} /> See Live Demo
+              <button onClick={() => onNavigate("pricing")} className="btn-ghost">
+                <TrendingUp size={14} /> Try AI Pricing
               </button>
-              <button onClick={() => onNavigate("comparison")} className="btn-ghost">
-                <BarChart3 size={14} /> View Dashboard
+              <button onClick={() => onNavigate("maintenance")} className="btn-ghost">
+                <Wrench size={14} /> Triage a Ticket
               </button>
             </div>
 
@@ -138,7 +138,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                   <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground shadow-elegant group-hover:scale-105 transition-transform">
                     <Icon size={20} />
                   </div>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border/70 px-2 py-0.5 rounded-full">{m.tag}</span>
+                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${m.live ? "border-success/40 text-success bg-success/10" : "border-border/70 text-muted-foreground"}`}>{m.live ? "Live tool" : m.tag}</span>
                 </div>
                 <h3 className="font-semibold text-foreground mb-1.5 group-hover:text-primary transition-colors">{m.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{m.desc}</p>
@@ -222,7 +222,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               </li>
             ))}
           </ul>
-          <button onClick={() => onNavigate("zip")} className="btn-primary mt-6">
+          <button onClick={() => onNavigate("pricing")} className="btn-primary mt-6">
             Try AI Pricing <ArrowRight size={14} />
           </button>
         </div>
@@ -336,10 +336,12 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           Live demo runs against real market data. No signup, no implementation cycle — explore every workflow in under a minute.
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
-          <button onClick={() => onNavigate("zip")} className="btn-primary">
-            See Live Demo <ArrowRight size={16} />
+          <button onClick={() => onNavigate("dashboard")} className="btn-primary">
+            Open Dashboard <ArrowRight size={16} />
           </button>
-          <button onClick={() => onNavigate("deal")} className="btn-ghost">Try the Platform</button>
+          <button onClick={() => onNavigate("pricing")} className="btn-ghost">Try AI Pricing</button>
+          <button onClick={() => onNavigate("maintenance")} className="btn-ghost">Triage a Ticket</button>
+          <button onClick={() => onNavigate("comms")} className="btn-ghost">Draft a Reply</button>
           <a href="mailto:smart-rental-analyzer@outlook.com" className="btn-ghost">Talk to Sales</a>
         </div>
       </section>
