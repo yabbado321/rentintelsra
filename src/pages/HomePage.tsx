@@ -138,7 +138,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                   <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground shadow-elegant group-hover:scale-105 transition-transform">
                     <Icon size={20} />
                   </div>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border/70 px-2 py-0.5 rounded-full">{m.tag}</span>
+                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${m.live ? "border-success/40 text-success bg-success/10" : "border-border/70 text-muted-foreground"}`}>{m.live ? "Live tool" : m.tag}</span>
                 </div>
                 <h3 className="font-semibold text-foreground mb-1.5 group-hover:text-primary transition-colors">{m.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{m.desc}</p>
