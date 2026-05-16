@@ -3,9 +3,11 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 interface Body {
   zip: string;
   address?: string;
+  listingUrl?: string;
   beds?: number;
   baths?: number;
   sqft?: number;
+  autoDetect?: boolean;
 }
 
 interface GeoResult {
