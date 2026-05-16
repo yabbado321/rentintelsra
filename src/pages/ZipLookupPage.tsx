@@ -53,9 +53,11 @@ const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n || 0);
 export default function ZipLookupPage() {
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
+  const [listingUrl, setListingUrl] = useState("");
   const [beds, setBeds] = useState(2);
   const [baths, setBaths] = useState(1);
   const [sqft, setSqft] = useState(1000);
+  const [autoDetect, setAutoDetect] = useState(false);
   const [data, setData] = useState<AreaData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +67,24 @@ export default function ZipLookupPage() {
       setError("Enter a valid 5-digit ZIP code");
       return;
     }
+    if (listingUrl.trim() && !/^https?:\/\/\S+\.\S+/.test(listingUrl.trim())) {
+      setError("Listing URL must start with http(s):// and be a valid link");
+      return;
+    }
     setLoading(true);
     setError(null);
     setData(null);
     try {
       const { data: res, error: fnErr } = await supabase.functions.invoke("area-insights", {
-        body: { zip: zipCode, address: address.trim() || undefined, beds, baths, sqft },
+        body: {
+          zip: zipCode,
+          address: address.trim() || undefined,
+          listingUrl: listingUrl.trim() || undefined,
+          beds: autoDetect ? undefined : beds,
+          baths: autoDetect ? undefined : baths,
+          sqft: autoDetect ? undefined : sqft,
+          autoDetect,
+        },
       });
       if (fnErr) throw fnErr;
       if (res?.error) throw new Error(res.error);
@@ -104,6 +118,17 @@ export default function ZipLookupPage() {
 
       <div className="panel space-y-4">
         <div>
+          <label htmlFor="zl-url" className="text-xs font-medium text-muted-foreground block mb-1.5">
+            Property Listing URL <span className="text-muted-foreground/60">(optional — paste a Zillow, Redfin, Apartments.com, Realtor.com, or Craigslist link to pull exact specs & list price)</span>
+          </label>
+          <input
+            id="zl-url" type="url" value={listingUrl} onChange={(e) => setListingUrl(e.target.value)}
+            className="input-field"
+            placeholder="https://www.zillow.com/homedetails/..."
+          />
+        </div>
+
+        <div>
           <label htmlFor="zl-addr" className="text-xs font-medium text-muted-foreground block mb-1.5">Property Address <span className="text-muted-foreground/60">(optional — unlocks Street View, comps & rent-max strategy)</span></label>
           <input
             id="zl-addr" type="text" value={address} onChange={(e) => setAddress(e.target.value)}
@@ -111,6 +136,23 @@ export default function ZipLookupPage() {
             placeholder="123 Main St, Beverly Hills"
           />
         </div>
+
+        {/* Auto-detect toggle — only meaningful when we have an address or URL */}
+        {(address.trim() || listingUrl.trim()) && (
+          <label htmlFor="zl-auto" className="flex items-start gap-3 p-3 rounded-xl bg-secondary/40 border border-border/60 cursor-pointer hover:border-primary/40 transition-colors">
+            <input
+              id="zl-auto" type="checkbox" checked={autoDetect} onChange={(e) => setAutoDetect(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+            />
+            <span className="text-sm">
+              <span className="font-medium text-foreground">Auto-detect bed / bath / sqft from the listing</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Let the AI pull exact specs from the URL or public records for max accuracy — overrides the manual fields below.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label htmlFor="zl-zip" className="text-xs font-medium text-muted-foreground block mb-1.5">ZIP Code</label>
@@ -122,16 +164,16 @@ export default function ZipLookupPage() {
             />
           </div>
           <div>
-            <label htmlFor="zl-beds" className="text-xs font-medium text-muted-foreground block mb-1.5">Bedrooms</label>
-            <input id="zl-beds" type="number" min={0} value={beds} onChange={(e) => setBeds(Number(e.target.value))} className="input-field font-mono" />
+            <label htmlFor="zl-beds" className="text-xs font-medium text-muted-foreground block mb-1.5">Bedrooms {autoDetect && <span className="text-primary/70">· auto</span>}</label>
+            <input id="zl-beds" type="number" min={0} value={beds} disabled={autoDetect} onChange={(e) => setBeds(Number(e.target.value))} className="input-field font-mono disabled:opacity-50" />
           </div>
           <div>
-            <label htmlFor="zl-baths" className="text-xs font-medium text-muted-foreground block mb-1.5">Bathrooms</label>
-            <input id="zl-baths" type="number" min={0} value={baths} onChange={(e) => setBaths(Number(e.target.value))} className="input-field font-mono" />
+            <label htmlFor="zl-baths" className="text-xs font-medium text-muted-foreground block mb-1.5">Bathrooms {autoDetect && <span className="text-primary/70">· auto</span>}</label>
+            <input id="zl-baths" type="number" min={0} value={baths} disabled={autoDetect} onChange={(e) => setBaths(Number(e.target.value))} className="input-field font-mono disabled:opacity-50" />
           </div>
           <div>
-            <label htmlFor="zl-sqft" className="text-xs font-medium text-muted-foreground block mb-1.5">Square Footage</label>
-            <input id="zl-sqft" type="number" min={0} step={50} value={sqft} onChange={(e) => setSqft(Number(e.target.value))} className="input-field font-mono" />
+            <label htmlFor="zl-sqft" className="text-xs font-medium text-muted-foreground block mb-1.5">Square Footage {autoDetect && <span className="text-primary/70">· auto</span>}</label>
+            <input id="zl-sqft" type="number" min={0} step={50} value={sqft} disabled={autoDetect} onChange={(e) => setSqft(Number(e.target.value))} className="input-field font-mono disabled:opacity-50" />
           </div>
         </div>
         <button onClick={analyze} disabled={loading} className="btn-primary">

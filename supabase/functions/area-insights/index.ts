@@ -3,9 +3,11 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 interface Body {
   zip: string;
   address?: string;
+  listingUrl?: string;
   beds?: number;
   baths?: number;
   sqft?: number;
+  autoDetect?: boolean;
 }
 
 interface GeoResult {
@@ -97,7 +99,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { zip, address, beds = 2, baths = 1, sqft = 1000 } = await req.json() as Body;
+    const { zip, address, listingUrl, beds, baths, sqft, autoDetect } = await req.json() as Body;
     if (!zip || !/^\d{5}$/.test(zip)) {
       return new Response(JSON.stringify({ error: 'Valid 5-digit ZIP required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -109,12 +111,18 @@ Deno.serve(async (req) => {
 
     const geo = await geocode(address ? `${address}, ${zip}` : zip);
 
+    const useAuto = autoDetect || (beds == null && baths == null && sqft == null);
+    const subjectLine = useAuto
+      ? `Subject property: AUTO-DETECT beds/baths/sqft from the listing URL${listingUrl ? '' : ' and/or public records for the address'}. Echo the detected values in property.addressNormalized + nearbyComps reasoning. If unverifiable, fall back to the ZIP's median 2bd/1ba/1000sqft and mark dataConfidence "Low".`
+      : `Subject property: ${beds ?? 2} bed / ${baths ?? 1} bath / ${sqft ?? 1000} sqft`;
+
     const userPrompt = `ZIP code: ${zip}
 ${address ? `Property address: ${address}` : ''}
-Subject property: ${beds} bed / ${baths} bath / ${sqft} sqft
+${listingUrl ? `Property listing URL: ${listingUrl}  ← FETCH THIS PAGE FIRST. Extract list price, beds, baths, sqft, year built, lot size, amenities, photos description, days on market, price history, HOA, and any rent or sale signals. Cross-reference against Zillow/Redfin/Realtor for the same address before committing to numbers.` : ''}
+${subjectLine}
 Today's date: ${new Date().toISOString().slice(0, 10)}
 
-Search the web for the most current rental market data, demographics, schools, crime, walkability, employers, and amenities for this ZIP.${address ? ` Also research the SPECIFIC property at the address — pull year built, lot size, last sale, 3-5 nearby comparable rentals, and craft a detailed rent-maximization strategy with concrete tips, value-add features with dollar amounts, optimal listing season, and listing headlines that justify premium pricing.` : ''} Return ONLY the JSON object — no prose, no markdown fences.`;
+Search the web for the most current rental market data, demographics, schools, crime, walkability, employers, and amenities for this ZIP.${address || listingUrl ? ` Also research the SPECIFIC property — pull year built, lot size, last sale, 3-5 nearby comparable rentals, and craft a detailed rent-maximization strategy with concrete tips, value-add features with dollar amounts, optimal listing season, and listing headlines that justify premium pricing. Set subjectEstimate using the verified specs.` : ''} Return ONLY the JSON object — no prose, no markdown fences.`;
 
     const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
