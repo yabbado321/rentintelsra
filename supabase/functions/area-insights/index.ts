@@ -123,12 +123,13 @@ Search the web for the most current rental market data, demographics, schools, c
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.2,
+        max_tokens: 4000,
         response_format: { type: 'json_object' },
       }),
     });
