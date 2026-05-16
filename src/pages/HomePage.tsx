@@ -719,3 +719,94 @@ function PricingMock() {
     </div>
   );
 }
+
+/* ─────────────── Leasing Pipeline + Vacancy Forecast Mock ─────────────── */
+function LeasingMock() {
+  const pipeline = [
+    { stage: "Inquiries", count: 142, tone: "text-info" },
+    { stage: "Tours booked", count: 48, tone: "text-primary" },
+    { stage: "Applications", count: 19, tone: "text-accent" },
+    { stage: "Signed leases", count: 11, tone: "text-success" },
+  ];
+  const forecast = [
+    { d: "Wk 1", v: 4 }, { d: "Wk 2", v: 6 }, { d: "Wk 3", v: 5 },
+    { d: "Wk 4", v: 9 }, { d: "Wk 5", v: 7 }, { d: "Wk 6", v: 3 },
+    { d: "Wk 7", v: 2 }, { d: "Wk 8", v: 4 },
+  ];
+  const max = Math.max(...forecast.map((f) => f.v));
+  return (
+    <div className="rounded-2xl border border-border/70 glass-strong p-5 shadow-elegant">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Leasing Pipeline · Oct</span>
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">23% conv · ↑ 4pts</span>
+      </div>
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        {pipeline.map((p) => (
+          <div key={p.stage} className="rounded-lg bg-secondary/30 border border-border/50 p-2.5">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">{p.stage}</div>
+            <div className={`font-mono text-lg font-bold mt-0.5 ${p.tone}`}>{p.count}</div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg bg-secondary/30 border border-border/50 p-3">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs font-medium">Vacancy forecast · next 60 days</span>
+          <span className="text-[10px] text-warning font-mono">9 expected · wk 4</span>
+        </div>
+        <div className="flex items-end gap-1 h-20">
+          {forecast.map((f, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full rounded-t gradient-primary opacity-90" style={{ height: `${(f.v / max) * 100}%` }} />
+              <span className="text-[9px] text-muted-foreground font-mono">{f.d}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Bot className="w-3.5 h-3.5 text-primary" /> 7 renewals flagged high-churn · outreach drafted
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Predictive Maintenance Mock ─────────────── */
+function PredictiveMock() {
+  const alerts = [
+    { sys: "HVAC · Bldg A", risk: 87, eta: "~28 days", cost: "$1,400 vs $4,200 emergency", tone: "text-destructive" },
+    { sys: "Water heater · Unit 7B", risk: 71, eta: "~45 days", cost: "$650 vs $1,900", tone: "text-warning" },
+    { sys: "Roof · 1142 Oak", risk: 52, eta: "~6 months", cost: "Inspect Q1", tone: "text-info" },
+  ];
+  return (
+    <div className="rounded-2xl border border-border/70 glass-strong p-5 shadow-elegant">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-warning" />
+          <span className="font-semibold text-sm">Predictive Risk Alerts</span>
+        </div>
+        <span className="text-[10px] font-mono text-success">$11.4k saved YTD</span>
+      </div>
+      <div className="space-y-2">
+        {alerts.map((a) => (
+          <div key={a.sys} className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{a.sys}</span>
+              <span className={`text-[10px] font-mono font-bold ${a.tone}`}>{a.risk} risk</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-secondary/60 overflow-hidden mb-2">
+              <div className={`h-full rounded-full ${a.risk > 80 ? "bg-destructive" : a.risk > 60 ? "bg-warning" : "bg-info"}`} style={{ width: `${a.risk}%` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+              <span>Est. failure {a.eta}</span><span>{a.cost}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <TrendingDown className="w-3.5 h-3.5 text-success" /> Emergency callouts down 42% since rollout
+      </div>
+    </div>
+  );
+}
