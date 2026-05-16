@@ -1,7 +1,8 @@
 import {
   ArrowRight, Sparkles, Check, TrendingUp, Wrench, MessageSquare, BarChart3, Bot, Calendar,
   Zap, Shield, DollarSign, Clock, Building2, Star, ArrowUpRight, Activity, Bell, Search,
-  Home as HomeIcon, ChevronRight, CircleDot
+  Home as HomeIcon, ChevronRight, CircleDot, AlertTriangle, Users, Database, CreditCard,
+  Briefcase, Plug, Cpu, LineChart, TrendingDown, X, Layers
 } from "lucide-react";
 
 interface HomePageProps {
