@@ -61,14 +61,15 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
 
             <h1 className="text-5xl md:text-6xl xl:text-7xl font-bold tracking-tight font-display leading-[1.02]">
-              Run your portfolio
+              The AI operating system
               <br />
-              <span className="gradient-text">on autopilot.</span>
+              <span className="gradient-text">for modern real estate.</span>
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
-              RentIntel is the AI platform that prices units, triages maintenance, talks to tenants, and grows NOI —
-              so property managers stop drowning in spreadsheets and email threads.
+              One platform to price every unit, triage every ticket, and answer every tenant —
+              built for operators running <b className="text-foreground/90">50 to 5,000+ doors</b>.
+              Replace 6 disconnected tools. Lift NOI in a quarter.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
