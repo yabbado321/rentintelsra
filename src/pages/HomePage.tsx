@@ -1,7 +1,8 @@
 import {
   ArrowRight, Sparkles, Check, TrendingUp, Wrench, MessageSquare, BarChart3, Bot, Calendar,
   Zap, Shield, DollarSign, Clock, Building2, Star, ArrowUpRight, Activity, Bell, Search,
-  Home as HomeIcon, ChevronRight, CircleDot
+  Home as HomeIcon, ChevronRight, CircleDot, AlertTriangle, Users, Database, CreditCard,
+  Briefcase, Plug, Cpu, LineChart, TrendingDown, X, Layers
 } from "lucide-react";
 
 interface HomePageProps {
@@ -60,14 +61,15 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
 
             <h1 className="text-5xl md:text-6xl xl:text-7xl font-bold tracking-tight font-display leading-[1.02]">
-              Run your portfolio
+              The AI operating system
               <br />
-              <span className="gradient-text">on autopilot.</span>
+              <span className="gradient-text">for modern real estate.</span>
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
-              RentIntel is the AI platform that prices units, triages maintenance, talks to tenants, and grows NOI —
-              so property managers stop drowning in spreadsheets and email threads.
+              One platform to price every unit, triage every ticket, and answer every tenant —
+              built for operators running <b className="text-foreground/90">50 to 5,000+ doors</b>.
+              Replace 6 disconnected tools. Lift NOI in a quarter.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
@@ -229,7 +231,156 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         <PricingMock />
       </section>
 
-      {/* ─────────── CASE STUDY ─────────── */}
+      {/* ─────────── PRODUCT SECTION 4: Leasing Pipeline + Vacancy Forecast ─────────── */}
+      <section className="grid lg:grid-cols-2 gap-10 items-center">
+        <div className="lg:order-2">
+          <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Leasing & Vacancy Intelligence</p>
+          <h2 className="text-3xl md:text-4xl font-bold font-display mb-4">Know your vacancies 60 days before they happen.</h2>
+          <p className="text-muted-foreground mb-6 leading-relaxed">
+            Renewal probability, lead velocity, and turn timing modeled per unit — so leasing teams
+            stop reacting to move-outs and start filling them before the keys come back.
+          </p>
+          <ul className="space-y-3">
+            {[
+              "60-day vacancy forecast with confidence bands",
+              "Auto-prioritized renewal outreach by churn risk",
+              "Leasing pipeline from inquiry → signed lease",
+              "Days-to-lease prediction per listing",
+            ].map((b) => (
+              <li key={b} className="flex gap-2.5 text-sm text-foreground/90">
+                <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" /> {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <LeasingMock />
+      </section>
+
+      {/* ─────────── PRODUCT SECTION 5: Predictive Maintenance ─────────── */}
+      <section className="grid lg:grid-cols-2 gap-10 items-center">
+        <div>
+          <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Predictive Maintenance Alerts</p>
+          <h2 className="text-3xl md:text-4xl font-bold font-display mb-4">Catch failures weeks before they cost you.</h2>
+          <p className="text-muted-foreground mb-6 leading-relaxed">
+            RentIntel watches ticket history, vendor invoices, and unit metadata to flag systems
+            heading for failure — HVAC, water heaters, roofs, appliances — so you replace on
+            <i> your </i> schedule, not at 2 a.m.
+          </p>
+          <ul className="space-y-3">
+            {[
+              "Lifecycle risk scoring per unit system",
+              "CapEx planner with cost vs. replace forecasts",
+              "Vendor performance scoring on cost + SLA",
+              "Warranty + parts tracking baked in",
+            ].map((b) => (
+              <li key={b} className="flex gap-2.5 text-sm text-foreground/90">
+                <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" /> {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <PredictiveMock />
+      </section>
+
+      {/* ─────────── FRAGMENTED vs UNIFIED ─────────── */}
+      <section>
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">The Shift</p>
+          <h2 className="text-4xl md:text-5xl font-bold font-display mb-4">Stop running your portfolio on 6 tabs.</h2>
+          <p className="text-muted-foreground">Legacy property management is reactive, fragmented, and built for the 2010s. RentIntel replaces the stack.</p>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="panel border-destructive/30">
+            <div className="flex items-center gap-2 mb-4">
+              <X className="w-4 h-4 text-destructive" />
+              <h3 className="font-display font-semibold text-foreground/90">The legacy stack</h3>
+            </div>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              {[
+                "AppFolio for ledger · Buildium for tickets · Zillow for pricing",
+                "Tenant texts lost across 3 inboxes and 2 phone numbers",
+                "Rent set once a year — leaking 8-12% in missed market gains",
+                "Maintenance triaged by whoever picks up first",
+                "NOI reported monthly, in a spreadsheet, two weeks late",
+              ].map((b) => (
+                <li key={b} className="flex gap-2.5"><X className="w-3.5 h-3.5 text-destructive/80 mt-0.5 shrink-0" />{b}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="panel border-primary/40">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h3 className="font-display font-semibold gradient-text">RentIntel · one OS</h3>
+            </div>
+            <ul className="space-y-3 text-sm text-foreground/90">
+              {[
+                "Pricing, leasing, maintenance, comms, NOI — one workspace",
+                "Every tenant message routed, scored, drafted in seconds",
+                "Daily AI rent refresh per door with audit trail",
+                "AI severity scoring + auto-dispatch to your vendor network",
+                "Live portfolio dashboard. Drill into any door in two clicks.",
+              ].map((b) => (
+                <li key={b} className="flex gap-2.5"><Check className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />{b}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── WHY NOW ─────────── */}
+      <section className="panel relative overflow-hidden">
+        <div className="absolute -bottom-24 -left-20 w-72 h-72 rounded-full bg-accent/15 blur-3xl" />
+        <div className="relative">
+          <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Why Now</p>
+          <h2 className="text-3xl md:text-4xl font-bold font-display mb-6 max-w-3xl">Real estate operations are at an inflection point.</h2>
+          <div className="grid md:grid-cols-3 gap-5">
+            {[
+              { icon: Users, title: "Labor shortage", body: "Property management headcount is down 14% since 2022. Portfolios still need to be run." },
+              { icon: Cpu, title: "AI is finally ready", body: "Frontier models can read leases, classify tickets, and draft replies at human quality — for cents." },
+              { icon: LineChart, title: "Operators are consolidating", body: "Mid-market PMCs are buying portfolios faster than they can hire. Software has to scale them." },
+            ].map((c) => { const I = c.icon; return (
+              <div key={c.title} className="rounded-xl bg-secondary/30 border border-border/60 p-5">
+                <I className="w-5 h-5 text-primary mb-3" />
+                <div className="font-semibold mb-1.5">{c.title}</div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{c.body}</p>
+              </div>
+            ); })}
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── INTEGRATIONS ECOSYSTEM ─────────── */}
+      <section>
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Ecosystem</p>
+          <h2 className="text-3xl md:text-4xl font-bold font-display mb-3">Plugs into the systems you already run.</h2>
+          <p className="text-muted-foreground">Two-way sync with your accounting, leasing, payments, and vendor stack — no rip-and-replace required.</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {[
+            { icon: DollarSign, name: "QuickBooks" },
+            { icon: Database, name: "AppFolio" },
+            { icon: Briefcase, name: "Yardi" },
+            { icon: CreditCard, name: "Stripe" },
+            { icon: Building2, name: "Zillow" },
+            { icon: HomeIcon, name: "Apartments.com" },
+            { icon: Plug, name: "Rently" },
+            { icon: MessageSquare, name: "Twilio" },
+            { icon: Layers, name: "HubSpot" },
+            { icon: Wrench, name: "ServiceFusion" },
+            { icon: Shield, name: "Plaid" },
+            { icon: Bot, name: "Zapier" },
+          ].map((i) => { const I = i.icon; return (
+            <div key={i.name} className="metric-card flex items-center gap-3">
+              <I className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-sm font-medium truncate">{i.name}</span>
+            </div>
+          ); })}
+        </div>
+        <p className="text-center text-xs text-muted-foreground mt-6">Open API + webhooks · SOC 2 Type II in progress · SSO/SAML on Enterprise</p>
+      </section>
+
+
       <section className="panel relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-primary/20 blur-3xl" />
         <div className="relative grid md:grid-cols-3 gap-8 items-center">
@@ -564,6 +715,97 @@ function PricingMock() {
       </div>
       <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
         <CircleDot className="w-3 h-3 text-primary animate-pulse" /> Refreshed 12 minutes ago · 14 comps ingested
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Leasing Pipeline + Vacancy Forecast Mock ─────────────── */
+function LeasingMock() {
+  const pipeline = [
+    { stage: "Inquiries", count: 142, tone: "text-info" },
+    { stage: "Tours booked", count: 48, tone: "text-primary" },
+    { stage: "Applications", count: 19, tone: "text-accent" },
+    { stage: "Signed leases", count: 11, tone: "text-success" },
+  ];
+  const forecast = [
+    { d: "Wk 1", v: 4 }, { d: "Wk 2", v: 6 }, { d: "Wk 3", v: 5 },
+    { d: "Wk 4", v: 9 }, { d: "Wk 5", v: 7 }, { d: "Wk 6", v: 3 },
+    { d: "Wk 7", v: 2 }, { d: "Wk 8", v: 4 },
+  ];
+  const max = Math.max(...forecast.map((f) => f.v));
+  return (
+    <div className="rounded-2xl border border-border/70 glass-strong p-5 shadow-elegant">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Leasing Pipeline · Oct</span>
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">23% conv · ↑ 4pts</span>
+      </div>
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        {pipeline.map((p) => (
+          <div key={p.stage} className="rounded-lg bg-secondary/30 border border-border/50 p-2.5">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">{p.stage}</div>
+            <div className={`font-mono text-lg font-bold mt-0.5 ${p.tone}`}>{p.count}</div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg bg-secondary/30 border border-border/50 p-3">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs font-medium">Vacancy forecast · next 60 days</span>
+          <span className="text-[10px] text-warning font-mono">9 expected · wk 4</span>
+        </div>
+        <div className="flex items-end gap-1 h-20">
+          {forecast.map((f, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full rounded-t gradient-primary opacity-90" style={{ height: `${(f.v / max) * 100}%` }} />
+              <span className="text-[9px] text-muted-foreground font-mono">{f.d}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Bot className="w-3.5 h-3.5 text-primary" /> 7 renewals flagged high-churn · outreach drafted
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Predictive Maintenance Mock ─────────────── */
+function PredictiveMock() {
+  const alerts = [
+    { sys: "HVAC · Bldg A", risk: 87, eta: "~28 days", cost: "$1,400 vs $4,200 emergency", tone: "text-destructive" },
+    { sys: "Water heater · Unit 7B", risk: 71, eta: "~45 days", cost: "$650 vs $1,900", tone: "text-warning" },
+    { sys: "Roof · 1142 Oak", risk: 52, eta: "~6 months", cost: "Inspect Q1", tone: "text-info" },
+  ];
+  return (
+    <div className="rounded-2xl border border-border/70 glass-strong p-5 shadow-elegant">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-warning" />
+          <span className="font-semibold text-sm">Predictive Risk Alerts</span>
+        </div>
+        <span className="text-[10px] font-mono text-success">$11.4k saved YTD</span>
+      </div>
+      <div className="space-y-2">
+        {alerts.map((a) => (
+          <div key={a.sys} className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{a.sys}</span>
+              <span className={`text-[10px] font-mono font-bold ${a.tone}`}>{a.risk} risk</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-secondary/60 overflow-hidden mb-2">
+              <div className={`h-full rounded-full ${a.risk > 80 ? "bg-destructive" : a.risk > 60 ? "bg-warning" : "bg-info"}`} style={{ width: `${a.risk}%` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+              <span>Est. failure {a.eta}</span><span>{a.cost}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <TrendingDown className="w-3.5 h-3.5 text-success" /> Emergency callouts down 42% since rollout
       </div>
     </div>
   );
