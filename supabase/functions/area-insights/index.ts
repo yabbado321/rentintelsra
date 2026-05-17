@@ -181,7 +181,7 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
   }
 }
 
-Use the most recent data you can. If unsure about a number, give a reasonable estimate but never null.`;
+Use the most recent data you can. If a number truly cannot be sourced, set it to 0 and add an "Insufficient data" entry in dataSourcesSummary with confidence "Low" rather than guessing. Every report MUST include the dataSourcesSummary audit array.`;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
