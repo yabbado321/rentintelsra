@@ -619,6 +619,42 @@ export default function ZipLookupPage() {
               </div>
             </div>
           )}
+
+          {/* Data Sources & Confidence Audit */}
+          {data.dataSourcesSummary && data.dataSourcesSummary.length > 0 && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-2">🔍 Data Sources & Confidence Summary</h3>
+              <p className="text-xs text-muted-foreground mb-4">Every major data point, the source it came from, and how confident we are. Audit anything that matters.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="py-2">Data Point</th>
+                      <th className="py-2">Value</th>
+                      <th className="py-2">Source</th>
+                      <th className="py-2">Confidence</th>
+                      <th className="py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.dataSourcesSummary.map((row, i) => {
+                      const icon = row.confidence === "High" ? "✅" : row.confidence === "Medium" ? "⚠️" : "❌";
+                      const color = row.confidence === "High" ? "text-success" : row.confidence === "Medium" ? "text-warning" : "text-destructive";
+                      return (
+                        <tr key={i} className="border-b border-border/50 align-top">
+                          <td className="py-2.5 font-medium">{row.field}</td>
+                          <td className="py-2.5 font-mono">{row.value}</td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{row.source}</td>
+                          <td className={`py-2.5 text-xs font-semibold ${color}`}>{icon} {row.confidence}</td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{row.notes || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
