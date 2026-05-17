@@ -4,9 +4,10 @@ import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
 
-interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; }
+interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; listedWithinMonths?: number; source?: string; }
 interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
 interface RentAdjustment { factor: string; dollarImpact: number; rationale: string; }
+interface SourceAudit { field: string; value: string; source: string; confidence: "High" | "Medium" | "Low"; notes?: string; }
 interface AreaData {
   area: { city: string; state: string; county: string; neighborhoodSummary: string };
   rentEstimates: {
@@ -45,12 +46,16 @@ interface AreaData {
   justification: string[];
   dataConfidence?: "Low" | "Medium" | "High";
   lastUpdated?: string;
+  dataSourcesSummary?: SourceAudit[];
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
-    addressNormalized: string; yearBuilt: number; lotSizeSqft: number;
-    estimatedValue: number; lastSoldPrice: number; lastSoldYear: number;
+    addressNormalized: string; yearBuilt: number; yearBuiltSource?: string; lotSizeSqft: number;
+    estimatedValue: number;
+    valueTriangulation?: { zillowZestimate: number; redfinEstimate: number; countyAssessedValue: number; medianUsed: number; confidence: "High" | "Medium" | "Low" };
+    lastSoldPrice: number; lastSoldYear: number;
     propertyType: string; neighborhood: string;
     nearbyComps: Comp[];
+    compSearchRadiusMi?: number;
     rentMaxStrategy: {
       recommendedRent: number; premiumRent: number; tips: string[];
       amenityValueAdds: { feature: string; monthlyValue: number }[];
@@ -306,7 +311,12 @@ export default function ZipLookupPage() {
           {/* Nearby Comps */}
           {data.property?.nearbyComps && data.property.nearbyComps.length > 0 && (
             <div className="bg-card rounded-xl p-6 border border-border">
-              <h3 className="text-lg font-semibold mb-4">🏘 Nearby Rental Comps</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">🏘 Nearby Rental Comps</h3>
+                {data.property.compSearchRadiusMi != null && (
+                  <span className="text-xs text-muted-foreground">Search radius: {data.property.compSearchRadiusMi.toFixed(1)} mi</span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -316,6 +326,8 @@ export default function ZipLookupPage() {
                       <th className="py-2 text-right">Sqft</th>
                       <th className="py-2 text-right">Rent</th>
                       <th className="py-2 text-right">Distance</th>
+                      <th className="py-2 text-right">Listed</th>
+                      <th className="py-2 text-right">Source</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -326,6 +338,12 @@ export default function ZipLookupPage() {
                         <td className="py-2.5 text-right font-mono">{fmtNum(c.sqft)}</td>
                         <td className="py-2.5 text-right font-mono font-bold">{fmtCurrency(c.rent)}</td>
                         <td className="py-2.5 text-right font-mono text-muted-foreground">{c.distanceMi.toFixed(1)} mi</td>
+                        <td className="py-2.5 text-right font-mono text-muted-foreground">{c.listedWithinMonths != null ? `${c.listedWithinMonths}mo` : "—"}</td>
+                        <td className="py-2.5 text-right">
+                          {c.source ? (
+                            <a href={c.source} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">link</a>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -333,6 +351,22 @@ export default function ZipLookupPage() {
               </div>
             </div>
           )}
+
+          {/* Home Value Triangulation */}
+          {data.property?.valueTriangulation && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-4">💰 Home Value Triangulation</h3>
+              <p className="text-xs text-muted-foreground mb-4">We pull three independent estimates and use the <strong>median</strong> — never extrapolate from neighborhood averages.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <MetricCard label="Zillow Zestimate" value={fmtCurrency(data.property.valueTriangulation.zillowZestimate)} />
+                <MetricCard label="Redfin Estimate" value={fmtCurrency(data.property.valueTriangulation.redfinEstimate)} />
+                <MetricCard label="County Assessed" value={fmtCurrency(data.property.valueTriangulation.countyAssessedValue)} />
+                <MetricCard label="Est. Value (median)" value={fmtCurrency(data.property.valueTriangulation.medianUsed)} variant="success"
+                  subtitle={`${data.property.valueTriangulation.confidence} confidence`} />
+              </div>
+            </div>
+          )}
+
 
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -582,6 +616,42 @@ export default function ZipLookupPage() {
                     {s}
                   </a>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Data Sources & Confidence Audit */}
+          {data.dataSourcesSummary && data.dataSourcesSummary.length > 0 && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-2">🔍 Data Sources & Confidence Summary</h3>
+              <p className="text-xs text-muted-foreground mb-4">Every major data point, the source it came from, and how confident we are. Audit anything that matters.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="py-2">Data Point</th>
+                      <th className="py-2">Value</th>
+                      <th className="py-2">Source</th>
+                      <th className="py-2">Confidence</th>
+                      <th className="py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.dataSourcesSummary.map((row, i) => {
+                      const icon = row.confidence === "High" ? "✅" : row.confidence === "Medium" ? "⚠️" : "❌";
+                      const color = row.confidence === "High" ? "text-success" : row.confidence === "Medium" ? "text-warning" : "text-destructive";
+                      return (
+                        <tr key={i} className="border-b border-border/50 align-top">
+                          <td className="py-2.5 font-medium">{row.field}</td>
+                          <td className="py-2.5 font-mono">{row.value}</td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{row.source}</td>
+                          <td className={`py-2.5 text-xs font-semibold ${color}`}>{icon} {row.confidence}</td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{row.notes || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
