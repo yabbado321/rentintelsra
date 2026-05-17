@@ -210,17 +210,17 @@ export default function ZipLookupPage() {
             <p className="text-sm text-muted-foreground leading-relaxed">{data.area.neighborhoodSummary}</p>
           </div>
 
-          {/* Street View + Map (when geo found) */}
+          {/* Satellite + Street Map (when geo found) */}
           {data.geo && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Street View</h3>
+                  <Satellite className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Satellite View</h3>
                 </div>
                 <iframe
-                  title="Street View"
-                  src={`https://www.google.com/maps?layer=c&cbll=${data.geo.lat},${data.geo.lng}&output=embed`}
+                  title="Satellite View"
+                  src={`https://maps.google.com/maps?q=${data.geo.lat},${data.geo.lng}&t=k&z=18&output=embed`}
                   className="w-full h-[320px] border-0"
                   loading="lazy"
                 />
@@ -228,11 +228,11 @@ export default function ZipLookupPage() {
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Location</h3>
+                  <h3 className="text-sm font-semibold">Location & Neighborhood</h3>
                 </div>
                 <iframe
-                  title="Map"
-                  src={`https://www.google.com/maps?q=${data.geo.lat},${data.geo.lng}&z=15&output=embed`}
+                  title="Location Map"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${data.geo.lng - 0.012},${data.geo.lat - 0.008},${data.geo.lng + 0.012},${data.geo.lat + 0.008}&layer=mapnik&marker=${data.geo.lat},${data.geo.lng}`}
                   className="w-full h-[320px] border-0"
                   loading="lazy"
                 />
