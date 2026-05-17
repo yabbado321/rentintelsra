@@ -311,7 +311,12 @@ export default function ZipLookupPage() {
           {/* Nearby Comps */}
           {data.property?.nearbyComps && data.property.nearbyComps.length > 0 && (
             <div className="bg-card rounded-xl p-6 border border-border">
-              <h3 className="text-lg font-semibold mb-4">🏘 Nearby Rental Comps</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">🏘 Nearby Rental Comps</h3>
+                {data.property.compSearchRadiusMi != null && (
+                  <span className="text-xs text-muted-foreground">Search radius: {data.property.compSearchRadiusMi.toFixed(1)} mi</span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -321,6 +326,8 @@ export default function ZipLookupPage() {
                       <th className="py-2 text-right">Sqft</th>
                       <th className="py-2 text-right">Rent</th>
                       <th className="py-2 text-right">Distance</th>
+                      <th className="py-2 text-right">Listed</th>
+                      <th className="py-2 text-right">Source</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -331,6 +338,12 @@ export default function ZipLookupPage() {
                         <td className="py-2.5 text-right font-mono">{fmtNum(c.sqft)}</td>
                         <td className="py-2.5 text-right font-mono font-bold">{fmtCurrency(c.rent)}</td>
                         <td className="py-2.5 text-right font-mono text-muted-foreground">{c.distanceMi.toFixed(1)} mi</td>
+                        <td className="py-2.5 text-right font-mono text-muted-foreground">{c.listedWithinMonths != null ? `${c.listedWithinMonths}mo` : "—"}</td>
+                        <td className="py-2.5 text-right">
+                          {c.source ? (
+                            <a href={c.source} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">link</a>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -338,6 +351,22 @@ export default function ZipLookupPage() {
               </div>
             </div>
           )}
+
+          {/* Home Value Triangulation */}
+          {data.property?.valueTriangulation && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-4">💰 Home Value Triangulation</h3>
+              <p className="text-xs text-muted-foreground mb-4">We pull three independent estimates and use the <strong>median</strong> — never extrapolate from neighborhood averages.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <MetricCard label="Zillow Zestimate" value={fmtCurrency(data.property.valueTriangulation.zillowZestimate)} />
+                <MetricCard label="Redfin Estimate" value={fmtCurrency(data.property.valueTriangulation.redfinEstimate)} />
+                <MetricCard label="County Assessed" value={fmtCurrency(data.property.valueTriangulation.countyAssessedValue)} />
+                <MetricCard label="Est. Value (median)" value={fmtCurrency(data.property.valueTriangulation.medianUsed)} variant="success"
+                  subtitle={`${data.property.valueTriangulation.confidence} confidence`} />
+              </div>
+            </div>
+          )}
+
 
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
