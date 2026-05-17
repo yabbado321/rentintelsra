@@ -365,17 +365,132 @@ export default function ZipLookupPage() {
             <p className="text-xs text-muted-foreground mt-2">Price per sqft: <span className="font-mono text-foreground">${data.rentEstimates.pricePerSqft.toFixed(2)}</span></p>
           </div>
 
-          {/* Justification */}
-          <div className="bg-card rounded-xl p-6 border border-primary/30 glow-primary">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> Why Rent Is What It Is</h3>
-            <ul className="space-y-2">
-              {data.justification.map((j, i) => (
-                <li key={i} className="text-sm text-foreground/90 flex gap-2">
-                  <span className="text-primary mt-1">▸</span><span>{j}</span>
-                </li>
-              ))}
-            </ul>
+          {/* Detailed Rent Derivation */}
+          <div className="bg-card rounded-xl p-6 border border-primary/40 glow-primary">
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-primary" /> How We Arrived at {fmtCurrency(data.rentEstimates.subjectEstimate)}
+              </h3>
+              {data.dataConfidence && (
+                <span className={`text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-md border ${
+                  data.dataConfidence === "High" ? "border-success/40 text-success bg-success/10" :
+                  data.dataConfidence === "Medium" ? "border-warning/40 text-warning bg-warning/10" :
+                  "border-destructive/40 text-destructive bg-destructive/10"
+                }`}>{data.dataConfidence} Confidence</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-5">Transparent, line-by-line derivation — every dollar accounted for.</p>
+
+            {data.rentBreakdown ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                  <div className="p-4 rounded-lg bg-secondary/40 border border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Base Rent</p>
+                    <p className="text-xl font-mono font-bold">{fmtCurrency(data.rentBreakdown.baseRent)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{data.rentBreakdown.baseRentSource}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-secondary/40 border border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Net Adjustments</p>
+                    <p className={`text-xl font-mono font-bold ${
+                      data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0) >= 0 ? "text-success" : "text-destructive"
+                    }`}>
+                      {data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0) >= 0 ? "+" : ""}
+                      {fmtCurrency(data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0))}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{data.rentBreakdown.adjustments.length} factors</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/40">
+                    <p className="text-[10px] uppercase tracking-wider text-primary mb-1">Final Estimate</p>
+                    <p className="text-xl font-mono font-bold text-primary">{fmtCurrency(data.rentBreakdown.finalEstimate)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Per month</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto mb-5">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                        <th className="py-2">Factor</th>
+                        <th className="py-2 text-right">Impact</th>
+                        <th className="py-2">Rationale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rentBreakdown.adjustments.map((a, i) => (
+                        <tr key={i} className="border-b border-border/50">
+                          <td className="py-2.5 font-medium">{a.factor}</td>
+                          <td className={`py-2.5 text-right font-mono font-semibold ${a.dollarImpact >= 0 ? "text-success" : "text-destructive"}`}>
+                            {a.dollarImpact >= 0 ? "+" : ""}{fmtCurrency(a.dollarImpact)}
+                          </td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{a.rationale}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Methodology</p>
+                    <p className="text-sm text-foreground/90 leading-relaxed">{data.rentBreakdown.methodology}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Confidence Drivers</p>
+                    <ul className="space-y-1.5">
+                      {data.rentBreakdown.confidenceDrivers.map((d, i) => (
+                        <li key={i} className="text-sm flex gap-2"><span className="text-primary mt-0.5">●</span><span>{d}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Market Context</p>
+              <ul className="space-y-2">
+                {data.justification.map((j, i) => (
+                  <li key={i} className="text-sm text-foreground/90 flex gap-2">
+                    <span className="text-primary mt-1">▸</span><span>{j}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
+
+          {/* Entertainment by age group */}
+          {data.entertainment && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-1 flex items-center gap-2"><Music className="w-5 h-5 text-primary" /> Entertainment & Things to Do</h3>
+              <p className="text-xs text-muted-foreground mb-5">Real, named venues nearby — curated by age group.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {([
+                  ["Kids (0–12)", data.entertainment.kids],
+                  ["Teens (13–17)", data.entertainment.teens],
+                  ["Young Adults (18–30)", data.entertainment.youngAdults],
+                  ["Families", data.entertainment.families],
+                  ["Seniors (55+)", data.entertainment.seniors],
+                ] as const).map(([title, items]) => (
+                  <div key={title} className="rounded-xl border border-border bg-secondary/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">{title}</p>
+                    <ul className="space-y-3">
+                      {(items || []).map((it, i) => (
+                        <li key={i} className="text-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-medium text-foreground">{it.name}</span>
+                            <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">{it.distanceMi.toFixed(1)} mi</span>
+                          </div>
+                          <p className="text-[11px] text-primary/80 uppercase tracking-wider mt-0.5">{it.category}</p>
+                          <p className="text-xs text-muted-foreground mt-1 leading-snug">{it.blurb}</p>
+                        </li>
+                      ))}
+                      {(!items || items.length === 0) && <li className="text-xs text-muted-foreground italic">No verified venues found nearby.</li>}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Demographics */}
           <div className="bg-card rounded-xl p-6 border border-border">
