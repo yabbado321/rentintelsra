@@ -4,9 +4,10 @@ import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
 
-interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; }
+interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; listedWithinMonths?: number; source?: string; }
 interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
 interface RentAdjustment { factor: string; dollarImpact: number; rationale: string; }
+interface SourceAudit { field: string; value: string; source: string; confidence: "High" | "Medium" | "Low"; notes?: string; }
 interface AreaData {
   area: { city: string; state: string; county: string; neighborhoodSummary: string };
   rentEstimates: {
@@ -45,12 +46,16 @@ interface AreaData {
   justification: string[];
   dataConfidence?: "Low" | "Medium" | "High";
   lastUpdated?: string;
+  dataSourcesSummary?: SourceAudit[];
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
-    addressNormalized: string; yearBuilt: number; lotSizeSqft: number;
-    estimatedValue: number; lastSoldPrice: number; lastSoldYear: number;
+    addressNormalized: string; yearBuilt: number; yearBuiltSource?: string; lotSizeSqft: number;
+    estimatedValue: number;
+    valueTriangulation?: { zillowZestimate: number; redfinEstimate: number; countyAssessedValue: number; medianUsed: number; confidence: "High" | "Medium" | "Low" };
+    lastSoldPrice: number; lastSoldYear: number;
     propertyType: string; neighborhood: string;
     nearbyComps: Comp[];
+    compSearchRadiusMi?: number;
     rentMaxStrategy: {
       recommendedRent: number; premiumRent: number; tips: string[];
       amenityValueAdds: { feature: string; monthlyValue: number }[];
