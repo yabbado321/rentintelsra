@@ -135,19 +135,41 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
   "dataConfidence": "Low" | "Medium" | "High",
   "lastUpdated": string,         // ISO date you sourced the data
 
+  // REQUIRED — audit trail. One entry per major data point.
+  "dataSourcesSummary": [
+    {
+      "field": string,           // e.g. "Year Built", "ZIP 58103 Population", "Subject Rent Estimate", "Estimated Home Value"
+      "value": string,           // the value as reported (with units)
+      "source": string,          // e.g. "Cass County Assessor", "2024 ACS 5-Year (ZIP 58103)", "Median of Zillow/Redfin/County"
+      "confidence": "High" | "Medium" | "Low",  // ✅ / ⚠️ / ❌
+      "notes": string            // why this confidence, or "wouldImproveWith" hint if Low
+    }
+  ],
+
   // Only when an address is provided — otherwise omit:
   "property"?: {
     "addressNormalized": string,
     "yearBuilt": number,
+    "yearBuiltSource": string,    // e.g. "Cass County Assessor 2024"
     "lotSizeSqft": number,
-    "estimatedValue": number,
+    "estimatedValue": number,     // MEDIAN of the three values below
+    "valueTriangulation": {
+      "zillowZestimate": number,
+      "redfinEstimate": number,
+      "countyAssessedValue": number,
+      "medianUsed": number,       // = estimatedValue
+      "confidence": "High" | "Medium" | "Low"
+    },
     "lastSoldPrice": number,
     "lastSoldYear": number,
-    "propertyType": string,
+    "propertyType": string,       // SFH, condo, townhome, multifamily, apartment — comps must match
     "neighborhood": string,
     "nearbyComps": [
-      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number }
+      // Each comp MUST: same ZIP or ≤0.5mi, same propertyType, ±1 bedroom, listed/rented within 6 months
+      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number, "listedWithinMonths": number, "source": string }
     ],
+    "compSearchRadiusMi": number, // 0.5 default; note if widened to 1.0
+
     "rentMaxStrategy": {
       "recommendedRent": number,
       "premiumRent": number,
