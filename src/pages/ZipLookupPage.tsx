@@ -2,15 +2,26 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Eye } from "lucide-react";
+import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
 
 interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; }
+interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
+interface RentAdjustment { factor: string; dollarImpact: number; rationale: string; }
 interface AreaData {
   area: { city: string; state: string; county: string; neighborhoodSummary: string };
   rentEstimates: {
     studio: number; oneBed: number; twoBed: number; threeBed: number; fourBed: number;
     medianOverall: number; pricePerSqft: number; subjectEstimate: number;
     rangeLow: number; rangeHigh: number; yoyChangePct: number; sources: string[];
+  };
+  rentBreakdown?: {
+    baseRent: number; baseRentSource: string;
+    adjustments: RentAdjustment[];
+    finalEstimate: number; methodology: string; confidenceDrivers: string[];
+  };
+  entertainment?: {
+    kids: EntertainmentItem[]; teens: EntertainmentItem[]; youngAdults: EntertainmentItem[];
+    families: EntertainmentItem[]; seniors: EntertainmentItem[];
   };
   demographics: {
     population: number; medianHouseholdIncome: number; medianAge: number;
@@ -32,6 +43,8 @@ interface AreaData {
     rentToIncomeRatioPct: number; investorScore: number;
   };
   justification: string[];
+  dataConfidence?: "Low" | "Medium" | "High";
+  lastUpdated?: string;
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
     addressNormalized: string; yearBuilt: number; lotSizeSqft: number;
@@ -197,17 +210,17 @@ export default function ZipLookupPage() {
             <p className="text-sm text-muted-foreground leading-relaxed">{data.area.neighborhoodSummary}</p>
           </div>
 
-          {/* Street View + Map (when geo found) */}
+          {/* Satellite + Street Map (when geo found) */}
           {data.geo && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Street View</h3>
+                  <Satellite className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Satellite View</h3>
                 </div>
                 <iframe
-                  title="Street View"
-                  src={`https://www.google.com/maps?layer=c&cbll=${data.geo.lat},${data.geo.lng}&output=embed`}
+                  title="Satellite View"
+                  src={`https://maps.google.com/maps?q=${data.geo.lat},${data.geo.lng}&t=k&z=18&output=embed`}
                   className="w-full h-[320px] border-0"
                   loading="lazy"
                 />
@@ -215,11 +228,11 @@ export default function ZipLookupPage() {
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-border flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Location</h3>
+                  <h3 className="text-sm font-semibold">Location & Neighborhood</h3>
                 </div>
                 <iframe
-                  title="Map"
-                  src={`https://www.google.com/maps?q=${data.geo.lat},${data.geo.lng}&z=15&output=embed`}
+                  title="Location Map"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${data.geo.lng - 0.012},${data.geo.lat - 0.008},${data.geo.lng + 0.012},${data.geo.lat + 0.008}&layer=mapnik&marker=${data.geo.lat},${data.geo.lng}`}
                   className="w-full h-[320px] border-0"
                   loading="lazy"
                 />
@@ -352,17 +365,132 @@ export default function ZipLookupPage() {
             <p className="text-xs text-muted-foreground mt-2">Price per sqft: <span className="font-mono text-foreground">${data.rentEstimates.pricePerSqft.toFixed(2)}</span></p>
           </div>
 
-          {/* Justification */}
-          <div className="bg-card rounded-xl p-6 border border-primary/30 glow-primary">
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> Why Rent Is What It Is</h3>
-            <ul className="space-y-2">
-              {data.justification.map((j, i) => (
-                <li key={i} className="text-sm text-foreground/90 flex gap-2">
-                  <span className="text-primary mt-1">▸</span><span>{j}</span>
-                </li>
-              ))}
-            </ul>
+          {/* Detailed Rent Derivation */}
+          <div className="bg-card rounded-xl p-6 border border-primary/40 glow-primary">
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-primary" /> How We Arrived at {fmtCurrency(data.rentEstimates.subjectEstimate)}
+              </h3>
+              {data.dataConfidence && (
+                <span className={`text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-md border ${
+                  data.dataConfidence === "High" ? "border-success/40 text-success bg-success/10" :
+                  data.dataConfidence === "Medium" ? "border-warning/40 text-warning bg-warning/10" :
+                  "border-destructive/40 text-destructive bg-destructive/10"
+                }`}>{data.dataConfidence} Confidence</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-5">Transparent, line-by-line derivation — every dollar accounted for.</p>
+
+            {data.rentBreakdown ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                  <div className="p-4 rounded-lg bg-secondary/40 border border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Base Rent</p>
+                    <p className="text-xl font-mono font-bold">{fmtCurrency(data.rentBreakdown.baseRent)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{data.rentBreakdown.baseRentSource}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-secondary/40 border border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Net Adjustments</p>
+                    <p className={`text-xl font-mono font-bold ${
+                      data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0) >= 0 ? "text-success" : "text-destructive"
+                    }`}>
+                      {data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0) >= 0 ? "+" : ""}
+                      {fmtCurrency(data.rentBreakdown.adjustments.reduce((s, a) => s + a.dollarImpact, 0))}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{data.rentBreakdown.adjustments.length} factors</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/40">
+                    <p className="text-[10px] uppercase tracking-wider text-primary mb-1">Final Estimate</p>
+                    <p className="text-xl font-mono font-bold text-primary">{fmtCurrency(data.rentBreakdown.finalEstimate)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Per month</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto mb-5">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                        <th className="py-2">Factor</th>
+                        <th className="py-2 text-right">Impact</th>
+                        <th className="py-2">Rationale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rentBreakdown.adjustments.map((a, i) => (
+                        <tr key={i} className="border-b border-border/50">
+                          <td className="py-2.5 font-medium">{a.factor}</td>
+                          <td className={`py-2.5 text-right font-mono font-semibold ${a.dollarImpact >= 0 ? "text-success" : "text-destructive"}`}>
+                            {a.dollarImpact >= 0 ? "+" : ""}{fmtCurrency(a.dollarImpact)}
+                          </td>
+                          <td className="py-2.5 text-muted-foreground text-xs">{a.rationale}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Methodology</p>
+                    <p className="text-sm text-foreground/90 leading-relaxed">{data.rentBreakdown.methodology}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Confidence Drivers</p>
+                    <ul className="space-y-1.5">
+                      {data.rentBreakdown.confidenceDrivers.map((d, i) => (
+                        <li key={i} className="text-sm flex gap-2"><span className="text-primary mt-0.5">●</span><span>{d}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Market Context</p>
+              <ul className="space-y-2">
+                {data.justification.map((j, i) => (
+                  <li key={i} className="text-sm text-foreground/90 flex gap-2">
+                    <span className="text-primary mt-1">▸</span><span>{j}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
+
+          {/* Entertainment by age group */}
+          {data.entertainment && (
+            <div className="bg-card rounded-xl p-6 border border-border">
+              <h3 className="text-lg font-semibold mb-1 flex items-center gap-2"><Music className="w-5 h-5 text-primary" /> Entertainment & Things to Do</h3>
+              <p className="text-xs text-muted-foreground mb-5">Real, named venues nearby — curated by age group.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {([
+                  ["Kids (0–12)", data.entertainment.kids],
+                  ["Teens (13–17)", data.entertainment.teens],
+                  ["Young Adults (18–30)", data.entertainment.youngAdults],
+                  ["Families", data.entertainment.families],
+                  ["Seniors (55+)", data.entertainment.seniors],
+                ] as const).map(([title, items]) => (
+                  <div key={title} className="rounded-xl border border-border bg-secondary/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">{title}</p>
+                    <ul className="space-y-3">
+                      {(items || []).map((it, i) => (
+                        <li key={i} className="text-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-medium text-foreground">{it.name}</span>
+                            <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">{it.distanceMi.toFixed(1)} mi</span>
+                          </div>
+                          <p className="text-[11px] text-primary/80 uppercase tracking-wider mt-0.5">{it.category}</p>
+                          <p className="text-xs text-muted-foreground mt-1 leading-snug">{it.blurb}</p>
+                        </li>
+                      ))}
+                      {(!items || items.length === 0) && <li className="text-xs text-muted-foreground italic">No verified venues found nearby.</li>}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Demographics */}
           <div className="bg-card rounded-xl p-6 border border-border">

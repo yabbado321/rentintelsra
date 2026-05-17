@@ -65,6 +65,30 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "rentToIncomeRatioPct": number,
     "investorScore": number      // 1-10
   },
+  "rentBreakdown": {
+    // Transparent step-by-step derivation of subjectEstimate. Every number must reconcile:
+    // baseRent + sum(adjustments[].dollarImpact) ≈ finalEstimate (±$25).
+    "baseRent": number,           // Starting point: HUD SAFMR or ZIP median for the unit size
+    "baseRentSource": string,     // e.g. "HUD 2024 SAFMR — 2BR Los Angeles-Long Beach-Anaheim MSA"
+    "adjustments": [
+      {
+        "factor": string,         // "Bedroom count", "Square footage premium", "Walk Score 92", "School rating 9/10", "In-unit laundry", "Sub-market premium (Beverly Hills)"
+        "dollarImpact": number,   // signed $ adjustment vs. base
+        "rationale": string       // 1-sentence cite-able reasoning
+      }
+    ],
+    "finalEstimate": number,      // MUST equal rentEstimates.subjectEstimate
+    "methodology": string,        // 2-3 sentences describing weighting (HUD SAFMR + comp regression + amenity hedonic model)
+    "confidenceDrivers": string[] // why High/Medium/Low confidence (e.g. "5 comps within 0.5mi", "no recent listings — using ZIP median")
+  },
+  "entertainment": {
+    // Real, named venues only — no generic "local parks". Each item must be a place a user can Google.
+    "kids": [{ "name": string, "category": string, "distanceMi": number, "ageRange": string, "blurb": string }],        // 0-12: playgrounds, children's museums, zoos, family attractions
+    "teens": [{ "name": string, "category": string, "distanceMi": number, "ageRange": string, "blurb": string }],       // 13-17: arcades, skate parks, mini-golf, escape rooms, malls
+    "youngAdults": [{ "name": string, "category": string, "distanceMi": number, "ageRange": string, "blurb": string }], // 18-30: nightlife, breweries, live music, sports bars, climbing gyms
+    "families": [{ "name": string, "category": string, "distanceMi": number, "ageRange": string, "blurb": string }],    // multi-gen: parks, festivals, family restaurants, movie theaters
+    "seniors": [{ "name": string, "category": string, "distanceMi": number, "ageRange": string, "blurb": string }]      // 55+: golf, community centers, theaters, gardens, libraries
+  },
   "justification": string[],     // 4-6 bullet sentences explaining WHY rent in this ZIP is what it is
   "dataConfidence": "Low" | "Medium" | "High",
   "lastUpdated": string,         // ISO date you sourced the data
