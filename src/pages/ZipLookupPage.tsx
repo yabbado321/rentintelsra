@@ -2,15 +2,26 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Eye } from "lucide-react";
+import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
 
 interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; }
+interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
+interface RentAdjustment { factor: string; dollarImpact: number; rationale: string; }
 interface AreaData {
   area: { city: string; state: string; county: string; neighborhoodSummary: string };
   rentEstimates: {
     studio: number; oneBed: number; twoBed: number; threeBed: number; fourBed: number;
     medianOverall: number; pricePerSqft: number; subjectEstimate: number;
     rangeLow: number; rangeHigh: number; yoyChangePct: number; sources: string[];
+  };
+  rentBreakdown?: {
+    baseRent: number; baseRentSource: string;
+    adjustments: RentAdjustment[];
+    finalEstimate: number; methodology: string; confidenceDrivers: string[];
+  };
+  entertainment?: {
+    kids: EntertainmentItem[]; teens: EntertainmentItem[]; youngAdults: EntertainmentItem[];
+    families: EntertainmentItem[]; seniors: EntertainmentItem[];
   };
   demographics: {
     population: number; medianHouseholdIncome: number; medianAge: number;
@@ -32,6 +43,8 @@ interface AreaData {
     rentToIncomeRatioPct: number; investorScore: number;
   };
   justification: string[];
+  dataConfidence?: "Low" | "Medium" | "High";
+  lastUpdated?: string;
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
     addressNormalized: string; yearBuilt: number; lotSizeSqft: number;
