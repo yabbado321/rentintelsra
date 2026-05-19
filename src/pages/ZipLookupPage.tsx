@@ -47,6 +47,7 @@ interface AreaData {
   dataConfidence?: "Low" | "Medium" | "High";
   lastUpdated?: string;
   dataSourcesSummary?: SourceAudit[];
+  accuracyNotice?: string;
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
     addressNormalized: string; yearBuilt: number; yearBuiltSource?: string; lotSizeSqft: number;
@@ -621,6 +622,11 @@ export default function ZipLookupPage() {
           )}
 
           {/* Data Sources & Confidence Audit */}
+          {data.accuracyNotice && (
+            <div className="bg-warning/10 border border-warning/30 text-warning rounded-xl p-4 text-sm">
+              ⚠️ {data.accuracyNotice}
+            </div>
+          )}
           {data.dataSourcesSummary && data.dataSourcesSummary.length > 0 && (
             <div className="bg-card rounded-xl p-6 border border-border">
               <h3 className="text-lg font-semibold mb-2">🔍 Data Sources & Confidence Summary</h3>
