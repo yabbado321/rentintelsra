@@ -306,6 +306,13 @@ Search the web for the most current rental market data, demographics, schools, c
       console.warn('area-insights: JSON repaired from truncated AI output');
     }
 
+    // Prefer the AI-resolved address (extracted from the listing URL or public records)
+    // so the map pinpoints the actual property, not just the ZIP centroid.
+    const resolvedAddr: string | undefined = data?.property?.addressNormalized;
+    if (resolvedAddr && resolvedAddr.trim().length > 5) {
+      const better = await geocode(resolvedAddr);
+      if (better) geo = better;
+    }
     if (geo) data.geo = { lat: geo.lat, lng: geo.lon, displayName: geo.displayName };
 
     return new Response(JSON.stringify(data), {
