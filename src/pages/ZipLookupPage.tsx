@@ -47,6 +47,7 @@ interface AreaData {
   dataConfidence?: "Low" | "Medium" | "High";
   lastUpdated?: string;
   dataSourcesSummary?: SourceAudit[];
+  accuracyNotice?: string;
   geo?: { lat: number; lng: number; displayName: string };
   property?: {
     addressNormalized: string; yearBuilt: number; yearBuiltSource?: string; lotSizeSqft: number;
