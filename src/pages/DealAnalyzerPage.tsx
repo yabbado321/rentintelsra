@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency, formatPercent, findBreakeven } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
-import { Search, Calculator, Users } from "lucide-react";
+import { Search, Calculator, Users, Info } from "lucide-react";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
@@ -14,7 +14,7 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
 };
 
-const PIE_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#c084fc", "#ec4899", "#f43f5e", "#f97316"];
+const PIE_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#c084fc", "#ec4899", "#f43f5e", "#f97316", "#10b981"];
 
 export default function DealAnalyzerPage() {
   const [tab, setTab] = useState<Tab>("analyzer");
@@ -23,7 +23,7 @@ export default function DealAnalyzerPage() {
     <div className="space-y-7">
       <header>
         <h1 className="text-4xl font-bold font-display">Deal Analyzer</h1>
-        <p className="text-muted-foreground mt-2">Underwrite a rental in seconds — ROI, cap rate, score and projections.</p>
+        <p className="text-muted-foreground mt-2">Full-stack underwriting — every cost an investor actually pays, every metric that matters.</p>
       </header>
 
       <div className="flex gap-2 flex-wrap">
@@ -50,77 +50,131 @@ export default function DealAnalyzerPage() {
 }
 
 function DealAnalyzerTab() {
+  // Property
   const [propName, setPropName] = useState("Untitled Deal");
   const [price, setPrice] = useState(250000);
-  const [rent, setRent] = useState(2200);
-  const [expenses, setExpenses] = useState(800);
+  const [rehab, setRehab] = useState(0);
+  const [arv, setArv] = useState(0); // after-repair value (0 = use price)
+  const [closingPct, setClosingPct] = useState(3);
+  // Financing
   const [downPct, setDownPct] = useState(20);
   const [interestRate, setInterestRate] = useState(6.5);
   const [loanTerm, setLoanTerm] = useState(30);
+  // Income
+  const [rent, setRent] = useState(2200);
+  const [otherIncome, setOtherIncome] = useState(0); // laundry, parking, pet
+  // Fixed monthly costs
+  const [taxRatePct, setTaxRatePct] = useState(1.2);   // % of value /yr
+  const [insRatePct, setInsRatePct] = useState(0.45);  // % of value /yr
+  const [hoa, setHoa] = useState(0);
+  // Variable % of rent
+  const [vacPct, setVacPct] = useState(5);
+  const [mgmtPct, setMgmtPct] = useState(8);
+  const [maintPct, setMaintPct] = useState(8);
+  const [capexPct, setCapexPct] = useState(5);
+  // Projection assumptions
   const [rentGrowth, setRentGrowth] = useState(3);
-  const [appreciation, setAppreciation] = useState(4);
-  const [years, setYears] = useState(5);
-  const [results, setResults] = useState<any>(null);
+  const [expGrowth, setExpGrowth] = useState(2.5);
+  const [appreciation, setAppreciation] = useState(3);
+  const [years, setYears] = useState(10);
 
-  const analyze = () => {
-    const mortgage = calculateMortgage(price, downPct, interestRate, loanTerm);
+  const results = useMemo(() => {
+    const totalCost = price + rehab + price * (closingPct / 100);
     const loanAmt = price * (1 - downPct / 100);
-    const totalInvest = price * downPct / 100;
+    const cashIn = price * (downPct / 100) + rehab + price * (closingPct / 100);
+    const pmi = downPct < 20 ? (loanAmt * 0.0075) / 12 : 0;
+    const mortgage = calculateMortgage(price, downPct, interestRate, loanTerm);
+    const valueBasis = arv > 0 ? arv : price;
 
-    // ----- Year-1 / current metrics (the headline numbers) -----
-    const noi = (rent - expenses) * 12;
-    const annualCF = (rent - expenses - mortgage) * 12;
-    const roi = totalInvest > 0 ? (annualCF / totalInvest) * 100 : 0;
-    const capRate = price > 0 ? (noi / price) * 100 : 0;
-    const coc = roi; // cash-on-cash equals ROI when computed on cash flow / cash invested
-    const dscr = mortgage > 0 ? noi / (mortgage * 12) : 0;
-    const ltv = price > 0 ? (loanAmt / price) * 100 : 0;
-    const grm = rent > 0 ? price / (rent * 12) : 0;
-    const payback = annualCF > 0 ? totalInvest / annualCF : null;
+    const propTax = (valueBasis * taxRatePct) / 100 / 12;
+    const insurance = (valueBasis * insRatePct) / 100 / 12;
+    const vacancy = rent * (vacPct / 100);
+    const mgmt = rent * (mgmtPct / 100);
+    const maint = rent * (maintPct / 100);
+    const capex = rent * (capexPct / 100);
 
-    // ----- Year-N projections -----
-    const projRent = rent * Math.pow(1 + rentGrowth / 100, years);
-    const projValue = price * Math.pow(1 + appreciation / 100, years);
-    const projCF = (projRent - expenses - mortgage) * 12;
+    const opEx = propTax + insurance + hoa + mgmt + maint + capex + vacancy; // operating expenses
+    const grossIncome = rent + otherIncome;
+    const effectiveIncome = grossIncome - vacancy;
+    const noi = (effectiveIncome - (propTax + insurance + hoa + mgmt + maint + capex)) * 12;
+    const debtSvc = (mortgage + pmi) * 12;
+    const annualCF = noi - debtSvc;
 
-    // Score weighting: ROI (50), Cap (30), DSCR (20)
-    const roiScore = Math.min(Math.max(roi, 0), 20) / 20 * 50;
-    const capScore = Math.min(Math.max(capRate, 0), 10) / 10 * 30;
-    const dscrScore = dscr >= 1.25 ? 20 : dscr >= 1 ? 10 : -10;
-    const score = Math.max(0, Math.min(roiScore + capScore + dscrScore, 100));
+    const roi = cashIn > 0 ? (annualCF / cashIn) * 100 : 0;
+    const capRate = valueBasis > 0 ? (noi / valueBasis) * 100 : 0;
+    const dscr = debtSvc > 0 ? noi / debtSvc : 0;
+    const ltv = valueBasis > 0 ? (loanAmt / valueBasis) * 100 : 0;
+    const grm = grossIncome > 0 ? valueBasis / (grossIncome * 12) : 0;
+    const onePctTest = (rent / price) * 100;          // > 1% is classic rule
+    const fiftyPctRule = grossIncome * 0.5 * 12;       // implied opex via 50% rule
+    const payback = annualCF > 0 ? cashIn / annualCF : null;
+    const equityMultiple5 = (() => {
+      const v5 = valueBasis * Math.pow(1 + appreciation / 100, 5);
+      let bal = loanAmt;
+      const mRate = interestRate / 100 / 12;
+      for (let m = 0; m < 60 && bal > 0; m++) { const i = bal * mRate; bal -= Math.max(0, mortgage - i); }
+      const equity = v5 - Math.max(0, bal);
+      let cfSum = 0;
+      for (let y = 1; y <= 5; y++) {
+        const r = rent * Math.pow(1 + rentGrowth / 100, y);
+        const ex = (propTax + insurance + hoa + r * ((mgmtPct + maintPct + capexPct + vacPct) / 100)) * Math.pow(1 + expGrowth / 100, y - 1);
+        cfSum += ((r + otherIncome - ex) - mortgage - pmi) * 12;
+      }
+      return cashIn > 0 ? (equity + cfSum) / cashIn : 0;
+    })();
 
-    // Reference expense breakdown (industry rules of thumb)
-    const propTax = price * 0.012 / 12;
-    const insurance = price * 0.004 / 12;
-    const mgmt = rent * 0.08;
-    const maint = rent * 0.10;
-    const capex = rent * 0.05;
-    const vacancy = rent * 0.05;
+    // Score (ROI 40, Cap 25, DSCR 20, 1% rule 10, CashFlow 5)
+    const roiScore = Math.min(Math.max(roi, 0), 20) / 20 * 40;
+    const capScore = Math.min(Math.max(capRate, 0), 10) / 10 * 25;
+    const dscrScore = dscr >= 1.25 ? 20 : dscr >= 1 ? 10 : 0;
+    const onePctScore = onePctTest >= 1 ? 10 : onePctTest >= 0.7 ? 5 : 0;
+    const cfScore = annualCF > 0 ? 5 : -10;
+    const score = Math.max(0, Math.min(roiScore + capScore + dscrScore + onePctScore + cfScore, 100));
 
     const expenseBreakdown = [
       { name: "Mortgage", value: Math.round(mortgage) },
       { name: "Property Tax", value: Math.round(propTax) },
       { name: "Insurance", value: Math.round(insurance) },
+      { name: "HOA", value: Math.round(hoa) },
       { name: "Management", value: Math.round(mgmt) },
       { name: "Maintenance", value: Math.round(maint) },
       { name: "CapEx", value: Math.round(capex) },
       { name: "Vacancy", value: Math.round(vacancy) },
-    ];
+      ...(pmi > 0 ? [{ name: "PMI", value: Math.round(pmi) }] : []),
+    ].filter(e => e.value > 0);
 
+    // Multi-year projections w/ amortization
+    let bal = loanAmt;
+    const mRate = interestRate / 100 / 12;
     const projections = Array.from({ length: years }, (_, i) => {
       const yr = i + 1;
+      for (let m = 0; m < 12 && bal > 0; m++) {
+        const interest = bal * mRate;
+        bal -= Math.max(0, mortgage - interest);
+      }
       const projR = rent * Math.pow(1 + rentGrowth / 100, yr);
-      const projV = price * Math.pow(1 + appreciation / 100, yr);
-      const cf = (projR - expenses - mortgage) * 12;
-      return { year: yr, rent: Math.round(projR), value: Math.round(projV), cashFlow: Math.round(cf) };
+      const projExFixed = (propTax + insurance + hoa) * Math.pow(1 + expGrowth / 100, yr - 1);
+      const projVarPct = (mgmtPct + maintPct + capexPct + vacPct) / 100;
+      const projEx = projExFixed + projR * projVarPct;
+      const projV = valueBasis * Math.pow(1 + appreciation / 100, yr);
+      const cf = ((projR + otherIncome - projEx) - mortgage - pmi) * 12;
+      return {
+        year: yr,
+        rent: Math.round(projR),
+        value: Math.round(projV),
+        cashFlow: Math.round(cf),
+        equity: Math.round(projV - Math.max(0, bal)),
+      };
     });
 
-    setResults({
-      roi, capRate, coc, dscr, ltv, grm, payback, annualCF, score, mortgage,
-      projRent, projValue, projCF,
-      expenseBreakdown, projections,
-    });
-  };
+    return {
+      cashIn, totalCost, mortgage, pmi, loanAmt,
+      noi, annualCF, roi, capRate, dscr, ltv, grm, onePctTest, fiftyPctRule, payback,
+      equityMultiple5, score, expenseBreakdown, projections, valueBasis,
+    };
+  }, [price, rehab, arv, closingPct, downPct, interestRate, loanTerm, rent, otherIncome,
+      taxRatePct, insRatePct, hoa, vacPct, mgmtPct, maintPct, capexPct,
+      rentGrowth, expGrowth, appreciation, years]);
 
   return (
     <div className="space-y-6">
@@ -130,141 +184,144 @@ function DealAnalyzerTab() {
           <input id="prop-name" value={propName} onChange={(e) => setPropName(e.target.value)} className="input-field" />
         </div>
 
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Deal Inputs</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            { id: "price", label: "Purchase Price ($)", value: price, set: setPrice, step: 1000 },
-            { id: "rent", label: "Monthly Rent ($)", value: rent, set: setRent, step: 50 },
-            { id: "exp", label: "Monthly Expenses ($)", value: expenses, set: setExpenses, step: 50 },
-            { id: "rate", label: "Interest Rate (%)", value: interestRate, set: setInterestRate, step: 0.1 },
-            { id: "rg", label: "Rent Growth (%/yr)", value: rentGrowth, set: setRentGrowth, step: 0.1 },
-            { id: "app", label: "Appreciation (%/yr)", value: appreciation, set: setAppreciation, step: 0.1 },
-          ].map((inp) => (
-            <div key={inp.id}>
-              <label htmlFor={inp.id} className="text-xs font-medium text-muted-foreground block mb-1.5">{inp.label}</label>
-              <input id={inp.id} type="number" value={inp.value} step={inp.step} onChange={(e) => inp.set(Number(e.target.value))} className="input-field font-mono" />
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Section title="1 · Acquisition & Financing">
+          <Num id="d-price" label="Purchase Price ($)" value={price} onChange={setPrice} step={1000} />
+          <Num id="d-rehab" label="Rehab Budget ($)" value={rehab} onChange={setRehab} step={500} />
+          <Num id="d-arv" label="ARV ($, 0 = use price)" value={arv} onChange={setArv} step={1000} />
+          <Num id="d-close" label="Closing Costs (% of price)" value={closingPct} onChange={setClosingPct} step={0.1} />
+          <Num id="d-rate" label="Interest Rate (%)" value={interestRate} onChange={setInterestRate} step={0.1} />
           <div>
-            <label htmlFor="dp" className="text-xs font-medium text-muted-foreground block mb-1.5">Down Payment: <span className="text-primary font-mono">{downPct}%</span></label>
-            <input id="dp" type="range" min={0} max={100} value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} className="w-full accent-primary" />
-          </div>
-          <div>
-            <label htmlFor="yrs" className="text-xs font-medium text-muted-foreground block mb-1.5">Hold: <span className="text-primary font-mono">{years} yrs</span></label>
-            <input id="yrs" type="range" min={1} max={30} value={years} onChange={(e) => setYears(Number(e.target.value))} className="w-full accent-primary" />
-          </div>
-          <div>
-            <label htmlFor="lt" className="text-xs font-medium text-muted-foreground block mb-1.5">Loan Term</label>
-            <select id="lt" value={loanTerm} onChange={(e) => setLoanTerm(Number(e.target.value))} className="input-field">
+            <label htmlFor="d-term" className="text-xs font-medium text-muted-foreground block mb-1.5">Loan Term</label>
+            <select id="d-term" value={loanTerm} onChange={(e) => setLoanTerm(Number(e.target.value))} className="input-field">
               <option value={15}>15 Years</option>
               <option value={20}>20 Years</option>
               <option value={30}>30 Years</option>
             </select>
           </div>
-        </div>
+          <Slider id="d-dp" label={`Down Payment: ${downPct}% ${downPct < 20 ? "· PMI applied" : ""}`} value={downPct} onChange={setDownPct} min={0} max={100} />
+        </Section>
 
-        <button onClick={analyze} className="btn-primary w-full">
-          <Search className="w-4 h-4" /> Analyze Deal
+        <Section title="2 · Income">
+          <Num id="d-rent" label="Monthly Rent ($)" value={rent} onChange={setRent} step={25} />
+          <Num id="d-other" label="Other Income ($/mo — laundry, parking, pet)" value={otherIncome} onChange={setOtherIncome} step={25} />
+        </Section>
+
+        <Section title="3 · Operating Expenses">
+          <Num id="d-tax" label="Property Tax (% of value/yr)" value={taxRatePct} onChange={setTaxRatePct} step={0.05} />
+          <Num id="d-ins" label="Insurance (% of value/yr)" value={insRatePct} onChange={setInsRatePct} step={0.05} />
+          <Num id="d-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
+          <Slider id="d-vac" label={`Vacancy: ${vacPct}%`} value={vacPct} onChange={setVacPct} min={0} max={20} />
+          <Slider id="d-mgmt" label={`Management: ${mgmtPct}%`} value={mgmtPct} onChange={setMgmtPct} min={0} max={20} />
+          <Slider id="d-maint" label={`Maintenance: ${maintPct}%`} value={maintPct} onChange={setMaintPct} min={0} max={20} />
+          <Slider id="d-capex" label={`CapEx Reserve: ${capexPct}%`} value={capexPct} onChange={setCapexPct} min={0} max={15} />
+        </Section>
+
+        <Section title="4 · Growth Assumptions">
+          <Num id="d-rg" label="Rent Growth (%/yr)" value={rentGrowth} onChange={setRentGrowth} step={0.25} />
+          <Num id="d-eg" label="Expense Growth (%/yr)" value={expGrowth} onChange={setExpGrowth} step={0.25} />
+          <Num id="d-app" label="Appreciation (%/yr)" value={appreciation} onChange={setAppreciation} step={0.25} />
+          <Slider id="d-yrs" label={`Hold Period: ${years} yrs`} value={years} onChange={setYears} min={1} max={30} />
+        </Section>
+
+        <button className="btn-primary w-full pointer-events-none opacity-90">
+          <Search className="w-4 h-4" /> Live results below — no need to click
         </button>
       </div>
 
-      {results && (
-        <div className="space-y-6 animate-fade-in">
-          <SummaryBar title={`${propName} · Year 1`} items={[
-            { label: "ROI", value: formatPercent(results.roi) },
-            { label: "Cap Rate", value: formatPercent(results.capRate) },
-            { label: "Cash Flow", value: `${formatCurrency(results.annualCF)}/yr` },
-            { label: "Score", value: `${results.score.toFixed(0)}/100` },
-          ]} />
+      <div className="space-y-6 animate-fade-in">
+        <SummaryBar title={`${propName} · Year 1`} items={[
+          { label: "ROI (CoC)", value: formatPercent(results.roi) },
+          { label: "Cap Rate", value: formatPercent(results.capRate) },
+          { label: "Cash Flow", value: `${formatCurrency(results.annualCF)}/yr` },
+          { label: "Score", value: `${results.score.toFixed(0)}/100` },
+        ]} />
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <MetricCard label="Cash-on-Cash" value={formatPercent(results.coc)} />
-            <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} />
-            <MetricCard label="LTV" value={formatPercent(results.ltv)} />
-            <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
-            <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
-            <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage)}/mo`} />
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab" />
+          <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"} />
+          <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`} />
+          <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} subtitle="≥1.25 lender OK" />
+          <MetricCard label="LTV" value={formatPercent(results.ltv)} />
+          <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
+          <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price" />
+          <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling" />
+          <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
+          <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"} />
+          <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`} />
+          <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt" />
+        </div>
 
-          {/* Score gauge */}
-          <div className="panel">
-            <h3 className="text-lg font-semibold mb-5 font-display">Deal Score</h3>
-            <div className="flex items-center gap-8 flex-wrap">
-              <div className="relative w-36 h-36">
-                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="hsl(240 30% 20%)" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15.5" fill="none"
-                    stroke={results.score >= 70 ? "hsl(152 70% 55%)" : results.score >= 50 ? "hsl(38 95% 60%)" : "hsl(0 80% 62%)"}
-                    strokeWidth="3" strokeDasharray={`${results.score} 100`} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold font-mono">{results.score.toFixed(0)}</span>
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">/ 100</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-xl font-display">
-                  {results.score >= 85 ? "🏆 Excellent deal" : results.score >= 70 ? "👍 Solid deal" : results.score >= 50 ? "⚠️ Marginal" : "🚨 High risk"}
-                </p>
-                <p className="text-sm text-muted-foreground max-w-md">
-                  {results.score >= 70
-                    ? "Strong fundamentals across ROI, cap rate, and debt coverage."
-                    : results.score >= 50
-                      ? "Some metrics are soft — try lowering price or increasing rent."
-                      : "Numbers don't pencil — consider walking or restructuring the offer."}
-                </p>
+        <div className="panel">
+          <h3 className="text-lg font-semibold mb-5 font-display">Deal Score</h3>
+          <div className="flex items-center gap-8 flex-wrap">
+            <div className="relative w-36 h-36">
+              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="hsl(240 30% 20%)" strokeWidth="3" />
+                <circle cx="18" cy="18" r="15.5" fill="none"
+                  stroke={results.score >= 70 ? "hsl(152 70% 55%)" : results.score >= 50 ? "hsl(38 95% 60%)" : "hsl(0 80% 62%)"}
+                  strokeWidth="3" strokeDasharray={`${results.score} 100`} strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold font-mono">{results.score.toFixed(0)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">/ 100</span>
               </div>
             </div>
-          </div>
-
-          {/* Year-N projection callout */}
-          <div className="panel">
-            <h3 className="text-lg font-semibold mb-4 font-display">Year {results.projections.length} projection</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <MetricCard label={`Year ${results.projections.length} Rent`} value={`${formatCurrency(results.projRent)}/mo`} />
-              <MetricCard label="Property Value" value={formatCurrency(results.projValue)} variant="success" />
-              <MetricCard label="Annual Cash Flow" value={formatCurrency(results.projCF)} variant={results.projCF >= 0 ? "success" : "danger"} />
+            <div className="space-y-1 max-w-md">
+              <p className="font-semibold text-xl font-display">
+                {results.score >= 85 ? "🏆 Excellent deal" : results.score >= 70 ? "👍 Solid deal" : results.score >= 50 ? "⚠️ Marginal" : "🚨 High risk"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Weighted by ROI (40), Cap Rate (25), DSCR (20), 1% Rule (10), Cash Flow (5).
+              </p>
             </div>
-          </div>
-
-          {/* Expense Pie */}
-          <div className="panel">
-            <h3 className="text-lg font-semibold mb-4 font-display">Reference monthly expenses</h3>
-            <p className="text-xs text-muted-foreground mb-4">Industry rules of thumb (mortgage + 1.2% tax, 0.4% insurance, 8% mgmt, 10% maint, 5% CapEx, 5% vacancy).</p>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={results.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                  innerRadius={70} outerRadius={110} paddingAngle={3}
-                  label={({ name, value }) => `${name}: $${value}`}>
-                  {results.expenseBreakdown.map((_: any, i: number) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="hsl(235 50% 11%)" strokeWidth={2} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Projections */}
-          <div className="panel">
-            <h3 className="text-lg font-semibold mb-4 font-display">Multi-year projections</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={results.projections}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 30% 22%)" />
-                <XAxis dataKey="year" stroke="hsl(240 18% 72%)" fontSize={12} />
-                <YAxis stroke="hsl(240 18% 72%)" fontSize={12} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="rent" name="Monthly Rent" fill="hsl(244 75% 62%)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="cashFlow" name="Annual Cash Flow" fill="hsl(262 83% 68%)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
           </div>
         </div>
-      )}
+
+        <div className="panel">
+          <h3 className="text-lg font-semibold mb-4 font-display">Monthly expense breakdown</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie data={results.expenseBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                innerRadius={70} outerRadius={110} paddingAngle={3}
+                label={({ name, value }) => `${name}: $${value}`}>
+                {results.expenseBreakdown.map((_, i) => (
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="hsl(235 50% 11%)" strokeWidth={2} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="panel">
+          <h3 className="text-lg font-semibold mb-4 font-display">{years}-year projections</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={results.projections}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 30% 22%)" />
+              <XAxis dataKey="year" stroke="hsl(240 18% 72%)" fontSize={12} />
+              <YAxis stroke="hsl(240 18% 72%)" fontSize={12} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="cashFlow" name="Annual Cash Flow" fill="hsl(244 75% 62%)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="equity" name="Equity" fill="hsl(152 70% 55%)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="panel text-xs text-muted-foreground flex items-start gap-2">
+          <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+          <span>NOI excludes mortgage. Cap rate uses ARV when set. PMI auto-applies under 20% down at 0.75% of loan/yr. Update assumptions to stress-test the deal.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">{title}</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{children}</div>
     </div>
   );
 }
@@ -275,51 +332,55 @@ function BreakEvenTab() {
   const [intRate, setIntRate] = useState(6.5);
   const [term, setTerm] = useState(30);
   const [ti, setTi] = useState(300);
+  const [hoa, setHoa] = useState(0);
   const [maintPct, setMaintPct] = useState(10);
   const [mgmtPct, setMgmtPct] = useState(8);
   const [vacPct, setVacPct] = useState(5);
+  const [capexPct, setCapexPct] = useState(5);
 
   const mortgage = calculateMortgage(price, downPct, intRate, term);
-  const breakeven = findBreakeven(mortgage, ti, maintPct, mgmtPct, vacPct);
+  const fixed = ti + hoa;
+  const breakeven = findBreakeven(mortgage, fixed, maintPct + capexPct, mgmtPct, vacPct);
 
   const chartData = breakeven ? Array.from({ length: 32 }, (_, i) => {
     const r = breakeven - 800 + i * 50;
-    const m = r * maintPct / 100;
-    const mg = r * mgmtPct / 100;
-    const vl = r * vacPct / 100;
-    return { rent: r, cashFlow: Math.round(r - (mortgage + ti + m + mg + vl)) };
+    const variable = r * (maintPct + capexPct + mgmtPct + vacPct) / 100;
+    return { rent: r, cashFlow: Math.round(r - (mortgage + fixed + variable)) };
   }) : [];
 
   return (
     <div className="space-y-6">
       <div className="panel">
         <h3 className="text-lg font-semibold mb-4 font-display flex items-center gap-2"><Calculator className="w-5 h-5 text-primary" /> Break-Even Calculator</h3>
-        <p className="text-sm text-muted-foreground mb-5">Lowest monthly rent that still covers mortgage + taxes + insurance + variable costs.</p>
+        <p className="text-sm text-muted-foreground mb-5">Lowest monthly rent that still covers PITI + HOA + maintenance + management + CapEx + vacancy.</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <InputField id="be-price" label="Purchase Price ($)" value={price} onChange={setPrice} step={1000} />
           <InputField id="be-rate" label="Interest Rate (%)" value={intRate} onChange={setIntRate} step={0.1} />
-          <InputField id="be-ti" label="Tax+Ins+HOA ($/mo)" value={ti} onChange={setTi} step={25} />
+          <InputField id="be-ti" label="Tax+Ins ($/mo)" value={ti} onChange={setTi} step={25} />
+          <InputField id="be-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
           <div>
             <label htmlFor="be-term" className="text-xs font-medium text-muted-foreground block mb-1.5">Loan Term</label>
             <select id="be-term" value={term} onChange={(e) => setTerm(Number(e.target.value))} className="input-field">
               <option value={15}>15 Years</option>
+              <option value={20}>20 Years</option>
               <option value={30}>30 Years</option>
             </select>
           </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
           <SliderField id="be-dp" label={`Down Payment: ${downPct}%`} value={downPct} onChange={setDownPct} min={0} max={100} />
-          <SliderField id="be-mt" label={`Maintenance: ${maintPct}%`} value={maintPct} onChange={setMaintPct} min={0} max={50} />
-          <SliderField id="be-mg" label={`Management: ${mgmtPct}%`} value={mgmtPct} onChange={setMgmtPct} min={0} max={50} />
-          <SliderField id="be-vc" label={`Vacancy: ${vacPct}%`} value={vacPct} onChange={setVacPct} min={0} max={30} />
+          <SliderField id="be-mt" label={`Maintenance: ${maintPct}%`} value={maintPct} onChange={setMaintPct} min={0} max={30} />
+          <SliderField id="be-cx" label={`CapEx: ${capexPct}%`} value={capexPct} onChange={setCapexPct} min={0} max={20} />
+          <SliderField id="be-mg" label={`Management: ${mgmtPct}%`} value={mgmtPct} onChange={setMgmtPct} min={0} max={20} />
+          <SliderField id="be-vc" label={`Vacancy: ${vacPct}%`} value={vacPct} onChange={setVacPct} min={0} max={20} />
         </div>
       </div>
 
       {breakeven ? (
         <div className="space-y-4 animate-fade-in">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard label="Break-Even Rent" value={formatCurrency(breakeven)} subtitle="/month" variant="success" />
-            <MetricCard label="Mortgage Payment" value={formatCurrency(mortgage)} subtitle="/month" />
+            <MetricCard label="Mortgage (P&I)" value={formatCurrency(mortgage)} subtitle="/month" />
+            <MetricCard label="Fixed Costs" value={formatCurrency(fixed)} subtitle="tax+ins+HOA" />
+            <MetricCard label="Margin Buffer" value={`${maintPct + capexPct + mgmtPct + vacPct}%`} subtitle="of rent reserved" />
           </div>
           <div className="panel">
             <h3 className="text-lg font-semibold mb-4 font-display">Cash flow vs rent</h3>
@@ -336,7 +397,7 @@ function BreakEvenTab() {
         </div>
       ) : (
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-5 text-center">
-          <p className="text-destructive font-medium">No break-even rent found below $6,000/mo. Try lower price or higher down payment.</p>
+          <p className="text-destructive font-medium">No break-even rent below $6,000/mo. Try a lower price or higher down payment.</p>
         </div>
       )}
     </div>
@@ -349,12 +410,21 @@ function AffordabilityTab() {
   const [income, setIncome] = useState(60000);
   const [ratio, setRatio] = useState(30);
   const [period, setPeriod] = useState<"monthly" | "annual">("annual");
+  const [otherDebt, setOtherDebt] = useState(0); // monthly debt obligations
+  const [dtiCap, setDtiCap] = useState(43);      // total debt-to-income cap
+
+  const reqMonthlyIncome = rent / (ratio / 100);
+  const reqAnnualIncome = reqMonthlyIncome * 12;
+  const monthlyIncome = period === "monthly" ? income : income / 12;
+  const affordableByRatio = monthlyIncome * (ratio / 100);
+  const affordableByDti = monthlyIncome * (dtiCap / 100) - otherDebt;
+  const affordable = Math.max(0, Math.min(affordableByRatio, affordableByDti));
 
   return (
     <div className="space-y-6">
       <div className="panel space-y-4">
         <h3 className="text-lg font-semibold flex items-center gap-2 font-display"><Users className="w-5 h-5 text-primary" /> Tenant Affordability</h3>
-        <p className="text-sm text-muted-foreground">Standard underwriting uses a 30% rent-to-income ratio. Adjust to match your screening criteria.</p>
+        <p className="text-sm text-muted-foreground">Most lenders/PMs use a 30% rent-to-income cap and a 43% total DTI cap. Tweak both to match your screening criteria.</p>
 
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setMode("income")} className={`tab-pill ${mode === "income" ? "tab-pill-active" : "tab-pill-inactive"}`}>
@@ -365,14 +435,17 @@ function AffordabilityTab() {
           </button>
         </div>
 
-        <SliderField id="aff-ratio" label={`Rent-to-Income Ratio: ${ratio}%`} value={ratio} onChange={setRatio} min={10} max={50} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SliderField id="aff-ratio" label={`Rent-to-Income Ratio: ${ratio}%`} value={ratio} onChange={setRatio} min={10} max={50} />
+          <SliderField id="aff-dti" label={`Total DTI Cap: ${dtiCap}%`} value={dtiCap} onChange={setDtiCap} min={20} max={60} />
+        </div>
 
         {mode === "income" ? (
           <div className="space-y-4">
             <InputField id="aff-rent" label="Monthly Rent ($)" value={rent} onChange={setRent} step={50} />
             <div className="grid grid-cols-2 gap-4">
-              <MetricCard label="Required Monthly Income" value={formatCurrency(rent / (ratio / 100))} variant="success" />
-              <MetricCard label="Required Annual Income" value={formatCurrency(rent / (ratio / 100) * 12)} />
+              <MetricCard label="Required Monthly Income" value={formatCurrency(reqMonthlyIncome)} variant="success" />
+              <MetricCard label="Required Annual Income" value={formatCurrency(reqAnnualIncome)} />
             </div>
           </div>
         ) : (
@@ -381,18 +454,27 @@ function AffordabilityTab() {
               <button onClick={() => setPeriod("monthly")} className={`tab-pill text-xs ${period === "monthly" ? "tab-pill-active" : "tab-pill-inactive"}`}>Monthly</button>
               <button onClick={() => setPeriod("annual")} className={`tab-pill text-xs ${period === "annual" ? "tab-pill-active" : "tab-pill-inactive"}`}>Annual</button>
             </div>
-            <InputField id="aff-inc" label={`${period === "monthly" ? "Monthly" : "Annual"} Income ($)`} value={income} onChange={setIncome} step={1000} />
-            <MetricCard
-              label="Affordable Rent"
-              value={formatCurrency(period === "monthly" ? income * ratio / 100 : income / 12 * ratio / 100)}
-              subtitle="/month"
-              variant="success"
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField id="aff-inc" label={`${period === "monthly" ? "Monthly" : "Annual"} Income ($)`} value={income} onChange={setIncome} step={1000} />
+              <InputField id="aff-debt" label="Other Monthly Debt ($)" value={otherDebt} onChange={setOtherDebt} step={50} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <MetricCard label="Max Rent (rent ratio)" value={formatCurrency(affordableByRatio)} />
+              <MetricCard label="Max Rent (DTI cap)" value={formatCurrency(Math.max(0, affordableByDti))} />
+              <MetricCard label="Tenant Approval Cap" value={formatCurrency(affordable)} subtitle="lower of the two" variant="success" />
+            </div>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function Num({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
+  return <InputField id={id} label={label} value={value} onChange={onChange} step={step} />;
+}
+function Slider({ id, label, value, onChange, min, max }: { id?: string; label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
+  return <SliderField id={id} label={label} value={value} onChange={onChange} min={min} max={max} />;
 }
 
 function InputField({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
