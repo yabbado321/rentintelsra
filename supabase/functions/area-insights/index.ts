@@ -225,7 +225,7 @@ Search the web for the most current rental market data, demographics, schools, c
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 16000,
         response_format: { type: 'json_object' },
       }),
     });
