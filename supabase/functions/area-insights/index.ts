@@ -205,7 +205,8 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
-    const geo = await geocode(address ? `${address}, ${zip}` : zip);
+    // Initial geocode from user input; may be re-done below using the AI-resolved address
+    let geo = await geocode(address ? `${address}, ${zip}` : zip);
 
     const useAuto = autoDetect || (beds == null && baths == null && sqft == null);
     const subjectLine = useAuto
@@ -305,6 +306,13 @@ Search the web for the most current rental market data, demographics, schools, c
       console.warn('area-insights: JSON repaired from truncated AI output');
     }
 
+    // Prefer the AI-resolved address (extracted from the listing URL or public records)
+    // so the map pinpoints the actual property, not just the ZIP centroid.
+    const resolvedAddr: string | undefined = data?.property?.addressNormalized;
+    if (resolvedAddr && resolvedAddr.trim().length > 5) {
+      const better = await geocode(resolvedAddr);
+      if (better) geo = better;
+    }
     if (geo) data.geo = { lat: geo.lat, lng: geo.lon, displayName: geo.displayName };
 
     return new Response(JSON.stringify(data), {
