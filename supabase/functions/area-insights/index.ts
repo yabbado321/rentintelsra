@@ -247,12 +247,54 @@ Search the web for the most current rental market data, demographics, schools, c
 
     const ai = await aiRes.json();
     const content = ai.choices?.[0]?.message?.content ?? '{}';
-    let data;
-    try {
-      data = JSON.parse(content);
-    } catch {
+    let data: any;
+    const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return null; } };
+    const repair = (s: string) => {
+      // Strip trailing junk after last complete brace, then rebalance
+      let str = s.trim().replace(/^```json\s*|```$/g, '');
+      // Remove trailing commas before } or ]
+      str = str.replace(/,(\s*[}\]])/g, '$1');
+      // If truncated mid-array/object, trim to last balanced point
+      const stack: string[] = [];
+      let lastGood = -1;
+      let inStr = false, esc = false;
+      for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (c === '\\') esc = true;
+          else if (c === '"') inStr = false;
+          continue;
+        }
+        if (c === '"') inStr = true;
+        else if (c === '{' || c === '[') stack.push(c);
+        else if (c === '}' || c === ']') stack.pop();
+        if (!inStr && stack.length === 0 && (c === '}' || c === ']')) lastGood = i;
+      }
+      let truncated = lastGood >= 0 ? str.slice(0, lastGood + 1) : str;
+      // If still unbalanced, append closers
+      const s2 = truncated;
+      const opens: string[] = [];
+      let inS = false, es = false;
+      for (let i = 0; i < s2.length; i++) {
+        const c = s2[i];
+        if (inS) { if (es) es = false; else if (c === '\\') es = true; else if (c === '"') inS = false; continue; }
+        if (c === '"') inS = true;
+        else if (c === '{') opens.push('}');
+        else if (c === '[') opens.push(']');
+        else if (c === '}' || c === ']') opens.pop();
+      }
+      while (opens.length) truncated += opens.pop();
+      return truncated;
+    };
+    data = tryParse(content);
+    if (!data) {
       const m = content.match(/\{[\s\S]*\}/);
-      data = m ? JSON.parse(m[0]) : {};
+      data = m ? tryParse(m[0]) : null;
+    }
+    if (!data) {
+      data = tryParse(repair(content)) ?? {};
+      console.warn('area-insights: JSON repaired from truncated AI output');
     }
 
     if (geo) data.geo = { lat: geo.lat, lng: geo.lon, displayName: geo.displayName };
