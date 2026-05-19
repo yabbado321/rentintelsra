@@ -213,7 +213,7 @@ export default function ROITaxesPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard label="Cash Invested" value={formatCurrency(calc.cashIn)} />
-            <MetricCard label="Sale Price (Yr {saleYear})" value={formatCurrency(calc.finalValue)} variant="success" />
+            <MetricCard label={`Sale Price (Yr ${saleYear})`} value={formatCurrency(calc.finalValue)} variant="success" />
             <MetricCard label="Loan Balance" value={formatCurrency(calc.remainingBal)} />
             <MetricCard label="Annual Depreciation" value={formatCurrency(calc.annualDepreciation)} subtitle="27.5-yr straight line" />
           </div>
