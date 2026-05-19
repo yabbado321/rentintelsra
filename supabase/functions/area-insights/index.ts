@@ -205,7 +205,8 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
-    const geo = await geocode(address ? `${address}, ${zip}` : zip);
+    // Initial geocode from user input; may be re-done below using the AI-resolved address
+    let geo = await geocode(address ? `${address}, ${zip}` : zip);
 
     const useAuto = autoDetect || (beds == null && baths == null && sqft == null);
     const subjectLine = useAuto
