@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatCurrency, formatPercent, calculateMortgage } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { Plus, Trash2, Building2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -41,6 +42,7 @@ const TOOLTIP_STYLE = {
 };
 
 export default function ComparisonPage() {
+  const [mode, setMode] = useState<Mode>("simple");
   const [properties, setProperties] = useState<Property[]>([]);
   const [name, setName] = useState("");
   // basics
