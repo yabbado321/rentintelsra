@@ -159,6 +159,8 @@ export default function ROITaxesPage() {
         </button>
       </div>
 
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode hides per-line operating expense % and the yearly breakdown table." />
+
       {view === "roi" ? (
         <div className="space-y-6">
           <div className="panel space-y-5">
