@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 import { Receipt, TrendingUp, BookOpen } from "lucide-react";
 
@@ -60,6 +61,7 @@ export default function ROITaxesPage() {
   const [saleYear, setSaleYear] = useState(10);
   const [saleCostPct, setSaleCostPct] = useState(7);
   const [view, setView] = useState<"roi" | "tax">("roi");
+  const [mode, setMode] = useState<Mode>("simple");
 
   const calc = useMemo(() => {
     const mortgage = calculateMortgage(price, downPct, interestRate, loanTerm);
