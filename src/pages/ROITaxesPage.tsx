@@ -183,15 +183,19 @@ export default function ROITaxesPage() {
               <Num id="rt-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
             </div>
 
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Operating Expenses (% of value or rent)</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Num id="rt-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
-              <Num id="rt-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
-              <Num id="rt-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
-              <Num id="rt-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
-              <Num id="rt-maint" label="Maintenance (%)" value={maintPct} onChange={setMaintPct} step={1} />
-              <Num id="rt-capex" label="CapEx (%)" value={capexPct} onChange={setCapexPct} step={1} />
-            </div>
+            {mode === "advanced" && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Operating Expenses (% of value or rent)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Num id="rt-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
+                  <Num id="rt-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
+                  <Num id="rt-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
+                  <Num id="rt-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
+                  <Num id="rt-maint" label="Maintenance (%)" value={maintPct} onChange={setMaintPct} step={1} />
+                  <Num id="rt-capex" label="CapEx (%)" value={capexPct} onChange={setCapexPct} step={1} />
+                </div>
+              </>
+            )}
 
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Growth & Exit</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
