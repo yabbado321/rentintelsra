@@ -267,37 +267,39 @@ export default function ROITaxesPage() {
             </ResponsiveContainer>
           </div>
 
-          <div className="panel overflow-x-auto">
-            <h3 className="text-lg font-semibold mb-4 font-display">Yearly breakdown</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/70 text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="text-left px-3 py-2">Yr</th>
-                  <th className="text-right px-3 py-2">Rent/mo</th>
-                  <th className="text-right px-3 py-2">Cash Flow</th>
-                  <th className="text-right px-3 py-2">After-Tax CF</th>
-                  <th className="text-right px-3 py-2">Principal</th>
-                  <th className="text-right px-3 py-2">Interest</th>
-                  <th className="text-right px-3 py-2">Equity</th>
-                  <th className="text-right px-3 py-2">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {calc.projections.map((p) => (
-                  <tr key={p.year} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
-                    <td className="px-3 py-2.5 font-mono">{p.year}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.rent)}</td>
-                    <td className={`px-3 py-2.5 text-right font-mono ${p.cashFlow >= 0 ? "text-foreground" : "text-destructive"}`}>{formatCurrency(p.cashFlow)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-success">{formatCurrency(p.afterTaxCF)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.principal)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">{formatCurrency(p.interest)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.equity)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.propValue)}</td>
+          {mode === "advanced" && (
+            <div className="panel overflow-x-auto">
+              <h3 className="text-lg font-semibold mb-4 font-display">Yearly breakdown</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/70 text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left px-3 py-2">Yr</th>
+                    <th className="text-right px-3 py-2">Rent/mo</th>
+                    <th className="text-right px-3 py-2">Cash Flow</th>
+                    <th className="text-right px-3 py-2">After-Tax CF</th>
+                    <th className="text-right px-3 py-2">Principal</th>
+                    <th className="text-right px-3 py-2">Interest</th>
+                    <th className="text-right px-3 py-2">Equity</th>
+                    <th className="text-right px-3 py-2">Value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {calc.projections.map((p) => (
+                    <tr key={p.year} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
+                      <td className="px-3 py-2.5 font-mono">{p.year}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.rent)}</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${p.cashFlow >= 0 ? "text-foreground" : "text-destructive"}`}>{formatCurrency(p.cashFlow)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-success">{formatCurrency(p.afterTaxCF)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.principal)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">{formatCurrency(p.interest)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.equity)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.propValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="panel space-y-2">
             <h3 className="text-lg font-semibold font-display">Sale waterfall (year {saleYear})</h3>
