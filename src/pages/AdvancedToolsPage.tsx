@@ -2,6 +2,7 @@ import { useState } from "react";
 import { runMonteCarlo, formatPercent, formatCurrency, calculateMortgage } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from "recharts";
 import { Activity, GitBranch, Play, Loader2, Info } from "lucide-react";
 
@@ -38,6 +39,7 @@ export default function AdvancedToolsPage() {
 }
 
 function MonteCarloTab() {
+  const [mode, setMode] = useState<Mode>("simple");
   const [price, setPrice] = useState(250000);
   const [rent, setRent] = useState(2200);
   const [expenses, setExpenses] = useState(800);
@@ -106,11 +108,12 @@ function MonteCarloTab() {
 
   return (
     <div className="space-y-6">
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode runs preset risk profiles. Advanced exposes custom growth ranges and simulation count." />
       <div className="panel space-y-5">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em] mb-2">Risk Profile</p>
           <div className="flex gap-2 flex-wrap">
-            {(["conservative", "balanced", "aggressive", "custom"] as const).map((p) => (
+            {(["conservative", "balanced", "aggressive", ...(mode === "advanced" ? ["custom" as const] : [])] as const).map((p) => (
               <button key={p} onClick={() => setPreset(p)} className={`tab-pill capitalize ${preset === p ? "tab-pill-active" : "tab-pill-inactive"}`}>
                 {p === "conservative" ? "📉" : p === "balanced" ? "📊" : p === "aggressive" ? "🚀" : "⚙️"} {p}
               </button>
@@ -133,7 +136,7 @@ function MonteCarloTab() {
           </div>
         </div>
 
-        {preset === "custom" && (
+        {mode === "advanced" && preset === "custom" && (
           <div className="space-y-3 rounded-xl border border-border/50 bg-secondary/20 p-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Custom growth ranges (%/yr)</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
