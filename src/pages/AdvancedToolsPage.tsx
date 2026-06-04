@@ -2,6 +2,7 @@ import { useState } from "react";
 import { runMonteCarlo, formatPercent, formatCurrency, calculateMortgage } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from "recharts";
 import { Activity, GitBranch, Play, Loader2, Info } from "lucide-react";
 
@@ -38,6 +39,7 @@ export default function AdvancedToolsPage() {
 }
 
 function MonteCarloTab() {
+  const [mode, setMode] = useState<Mode>("simple");
   const [price, setPrice] = useState(250000);
   const [rent, setRent] = useState(2200);
   const [expenses, setExpenses] = useState(800);
@@ -106,11 +108,12 @@ function MonteCarloTab() {
 
   return (
     <div className="space-y-6">
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode runs preset risk profiles. Advanced exposes custom growth ranges and simulation count." />
       <div className="panel space-y-5">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em] mb-2">Risk Profile</p>
           <div className="flex gap-2 flex-wrap">
-            {(["conservative", "balanced", "aggressive", "custom"] as const).map((p) => (
+            {(["conservative", "balanced", "aggressive", ...(mode === "advanced" ? ["custom" as const] : [])] as const).map((p) => (
               <button key={p} onClick={() => setPreset(p)} className={`tab-pill capitalize ${preset === p ? "tab-pill-active" : "tab-pill-inactive"}`}>
                 {p === "conservative" ? "📉" : p === "balanced" ? "📊" : p === "aggressive" ? "🚀" : "⚙️"} {p}
               </button>
@@ -133,7 +136,7 @@ function MonteCarloTab() {
           </div>
         </div>
 
-        {preset === "custom" && (
+        {mode === "advanced" && preset === "custom" && (
           <div className="space-y-3 rounded-xl border border-border/50 bg-secondary/20 p-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Custom growth ranges (%/yr)</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -217,6 +220,7 @@ function MonteCarloTab() {
 }
 
 function ScenarioTab() {
+  const [mode, setMode] = useState<Mode>("simple");
   const [price, setPrice] = useState(250000);
   const [rent, setRent] = useState(2200);
   const [expenses, setExpenses] = useState(800);
@@ -267,6 +271,7 @@ function ScenarioTab() {
 
   return (
     <div className="space-y-6">
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode uses preset growth bands. Advanced lets you tune rent growth & appreciation per scenario." />
       <div className="panel space-y-4">
         <h3 className="text-lg font-semibold font-display">Scenario inputs</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -278,24 +283,28 @@ function ScenarioTab() {
           <Num id="sc-yr" label="Hold Years" value={years} onChange={setYears} step={1} />
         </div>
 
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em] mt-2">Scenario assumptions (%/yr)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-success/30 bg-success/5 p-3 space-y-2">
-            <p className="text-xs font-semibold text-success">🟢 Optimistic</p>
-            <Num id="opt-r" label="Rent growth" value={optRent} onChange={setOptRent} step={0.5} />
-            <Num id="opt-a" label="Appreciation" value={optApp} onChange={setOptApp} step={0.5} />
-          </div>
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
-            <p className="text-xs font-semibold text-primary">🔵 Base</p>
-            <Num id="base-r" label="Rent growth" value={baseRent} onChange={setBaseRent} step={0.5} />
-            <Num id="base-a" label="Appreciation" value={baseApp} onChange={setBaseApp} step={0.5} />
-          </div>
-          <div className="rounded-xl border border-warning/30 bg-warning/5 p-3 space-y-2">
-            <p className="text-xs font-semibold text-warning">🟡 Pessimistic</p>
-            <Num id="pes-r" label="Rent growth" value={pesRent} onChange={setPesRent} step={0.5} />
-            <Num id="pes-a" label="Appreciation" value={pesApp} onChange={setPesApp} step={0.5} />
-          </div>
-        </div>
+        {mode === "advanced" && (
+          <>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em] mt-2">Scenario assumptions (%/yr)</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-success/30 bg-success/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-success">🟢 Optimistic</p>
+                <Num id="opt-r" label="Rent growth" value={optRent} onChange={setOptRent} step={0.5} />
+                <Num id="opt-a" label="Appreciation" value={optApp} onChange={setOptApp} step={0.5} />
+              </div>
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-primary">🔵 Base</p>
+                <Num id="base-r" label="Rent growth" value={baseRent} onChange={setBaseRent} step={0.5} />
+                <Num id="base-a" label="Appreciation" value={baseApp} onChange={setBaseApp} step={0.5} />
+              </div>
+              <div className="rounded-xl border border-warning/30 bg-warning/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-warning">🟡 Pessimistic</p>
+                <Num id="pes-r" label="Rent growth" value={pesRent} onChange={setPesRent} step={0.5} />
+                <Num id="pes-a" label="Appreciation" value={pesApp} onChange={setPesApp} step={0.5} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

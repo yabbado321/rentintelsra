@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 import { Receipt, TrendingUp, BookOpen } from "lucide-react";
 
@@ -60,6 +61,7 @@ export default function ROITaxesPage() {
   const [saleYear, setSaleYear] = useState(10);
   const [saleCostPct, setSaleCostPct] = useState(7);
   const [view, setView] = useState<"roi" | "tax">("roi");
+  const [mode, setMode] = useState<Mode>("simple");
 
   const calc = useMemo(() => {
     const mortgage = calculateMortgage(price, downPct, interestRate, loanTerm);
@@ -157,6 +159,8 @@ export default function ROITaxesPage() {
         </button>
       </div>
 
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode hides per-line operating expense % and the yearly breakdown table." />
+
       {view === "roi" ? (
         <div className="space-y-6">
           <div className="panel space-y-5">
@@ -179,15 +183,19 @@ export default function ROITaxesPage() {
               <Num id="rt-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
             </div>
 
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Operating Expenses (% of value or rent)</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Num id="rt-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
-              <Num id="rt-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
-              <Num id="rt-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
-              <Num id="rt-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
-              <Num id="rt-maint" label="Maintenance (%)" value={maintPct} onChange={setMaintPct} step={1} />
-              <Num id="rt-capex" label="CapEx (%)" value={capexPct} onChange={setCapexPct} step={1} />
-            </div>
+            {mode === "advanced" && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Operating Expenses (% of value or rent)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Num id="rt-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
+                  <Num id="rt-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
+                  <Num id="rt-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
+                  <Num id="rt-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
+                  <Num id="rt-maint" label="Maintenance (%)" value={maintPct} onChange={setMaintPct} step={1} />
+                  <Num id="rt-capex" label="CapEx (%)" value={capexPct} onChange={setCapexPct} step={1} />
+                </div>
+              </>
+            )}
 
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Growth & Exit</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -259,37 +267,39 @@ export default function ROITaxesPage() {
             </ResponsiveContainer>
           </div>
 
-          <div className="panel overflow-x-auto">
-            <h3 className="text-lg font-semibold mb-4 font-display">Yearly breakdown</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/70 text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="text-left px-3 py-2">Yr</th>
-                  <th className="text-right px-3 py-2">Rent/mo</th>
-                  <th className="text-right px-3 py-2">Cash Flow</th>
-                  <th className="text-right px-3 py-2">After-Tax CF</th>
-                  <th className="text-right px-3 py-2">Principal</th>
-                  <th className="text-right px-3 py-2">Interest</th>
-                  <th className="text-right px-3 py-2">Equity</th>
-                  <th className="text-right px-3 py-2">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {calc.projections.map((p) => (
-                  <tr key={p.year} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
-                    <td className="px-3 py-2.5 font-mono">{p.year}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.rent)}</td>
-                    <td className={`px-3 py-2.5 text-right font-mono ${p.cashFlow >= 0 ? "text-foreground" : "text-destructive"}`}>{formatCurrency(p.cashFlow)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-success">{formatCurrency(p.afterTaxCF)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.principal)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">{formatCurrency(p.interest)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.equity)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.propValue)}</td>
+          {mode === "advanced" && (
+            <div className="panel overflow-x-auto">
+              <h3 className="text-lg font-semibold mb-4 font-display">Yearly breakdown</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/70 text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="text-left px-3 py-2">Yr</th>
+                    <th className="text-right px-3 py-2">Rent/mo</th>
+                    <th className="text-right px-3 py-2">Cash Flow</th>
+                    <th className="text-right px-3 py-2">After-Tax CF</th>
+                    <th className="text-right px-3 py-2">Principal</th>
+                    <th className="text-right px-3 py-2">Interest</th>
+                    <th className="text-right px-3 py-2">Equity</th>
+                    <th className="text-right px-3 py-2">Value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {calc.projections.map((p) => (
+                    <tr key={p.year} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
+                      <td className="px-3 py-2.5 font-mono">{p.year}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.rent)}</td>
+                      <td className={`px-3 py-2.5 text-right font-mono ${p.cashFlow >= 0 ? "text-foreground" : "text-destructive"}`}>{formatCurrency(p.cashFlow)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-success">{formatCurrency(p.afterTaxCF)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.principal)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">{formatCurrency(p.interest)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.equity)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(p.propValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="panel space-y-2">
             <h3 className="text-lg font-semibold font-display">Sale waterfall (year {saleYear})</h3>

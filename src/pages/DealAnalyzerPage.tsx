@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency, formatPercent, findBreakeven } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
+import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 
@@ -50,6 +51,7 @@ export default function DealAnalyzerPage() {
 }
 
 function DealAnalyzerTab() {
+  const [mode, setMode] = useState<Mode>("simple");
   // Property
   const [propName, setPropName] = useState("Untitled Deal");
   const [price, setPrice] = useState(250000);
@@ -178,6 +180,7 @@ function DealAnalyzerTab() {
 
   return (
     <div className="space-y-6">
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode hides operating expense % sliders and growth assumptions. Advanced unlocks the full underwriting stack." />
       <div className="panel space-y-6">
         <div>
           <label htmlFor="prop-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">Property Name</label>
@@ -206,22 +209,26 @@ function DealAnalyzerTab() {
           <Num id="d-other" label="Other Income ($/mo — laundry, parking, pet)" value={otherIncome} onChange={setOtherIncome} step={25} />
         </Section>
 
-        <Section title="3 · Operating Expenses">
-          <Num id="d-tax" label="Property Tax (% of value/yr)" value={taxRatePct} onChange={setTaxRatePct} step={0.05} />
-          <Num id="d-ins" label="Insurance (% of value/yr)" value={insRatePct} onChange={setInsRatePct} step={0.05} />
-          <Num id="d-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
-          <Slider id="d-vac" label={`Vacancy: ${vacPct}%`} value={vacPct} onChange={setVacPct} min={0} max={20} />
-          <Slider id="d-mgmt" label={`Management: ${mgmtPct}%`} value={mgmtPct} onChange={setMgmtPct} min={0} max={20} />
-          <Slider id="d-maint" label={`Maintenance: ${maintPct}%`} value={maintPct} onChange={setMaintPct} min={0} max={20} />
-          <Slider id="d-capex" label={`CapEx Reserve: ${capexPct}%`} value={capexPct} onChange={setCapexPct} min={0} max={15} />
-        </Section>
+        {mode === "advanced" && (
+          <>
+            <Section title="3 · Operating Expenses">
+              <Num id="d-tax" label="Property Tax (% of value/yr)" value={taxRatePct} onChange={setTaxRatePct} step={0.05} />
+              <Num id="d-ins" label="Insurance (% of value/yr)" value={insRatePct} onChange={setInsRatePct} step={0.05} />
+              <Num id="d-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
+              <Slider id="d-vac" label={`Vacancy: ${vacPct}%`} value={vacPct} onChange={setVacPct} min={0} max={20} />
+              <Slider id="d-mgmt" label={`Management: ${mgmtPct}%`} value={mgmtPct} onChange={setMgmtPct} min={0} max={20} />
+              <Slider id="d-maint" label={`Maintenance: ${maintPct}%`} value={maintPct} onChange={setMaintPct} min={0} max={20} />
+              <Slider id="d-capex" label={`CapEx Reserve: ${capexPct}%`} value={capexPct} onChange={setCapexPct} min={0} max={15} />
+            </Section>
 
-        <Section title="4 · Growth Assumptions">
-          <Num id="d-rg" label="Rent Growth (%/yr)" value={rentGrowth} onChange={setRentGrowth} step={0.25} />
-          <Num id="d-eg" label="Expense Growth (%/yr)" value={expGrowth} onChange={setExpGrowth} step={0.25} />
-          <Num id="d-app" label="Appreciation (%/yr)" value={appreciation} onChange={setAppreciation} step={0.25} />
-          <Slider id="d-yrs" label={`Hold Period: ${years} yrs`} value={years} onChange={setYears} min={1} max={30} />
-        </Section>
+            <Section title="4 · Growth Assumptions">
+              <Num id="d-rg" label="Rent Growth (%/yr)" value={rentGrowth} onChange={setRentGrowth} step={0.25} />
+              <Num id="d-eg" label="Expense Growth (%/yr)" value={expGrowth} onChange={setExpGrowth} step={0.25} />
+              <Num id="d-app" label="Appreciation (%/yr)" value={appreciation} onChange={setAppreciation} step={0.25} />
+              <Slider id="d-yrs" label={`Hold Period: ${years} yrs`} value={years} onChange={setYears} min={1} max={30} />
+            </Section>
+          </>
+        )}
 
         <button className="btn-primary w-full pointer-events-none opacity-90">
           <Search className="w-4 h-4" /> Live results below — no need to click
@@ -240,15 +247,19 @@ function DealAnalyzerTab() {
           <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab" />
           <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"} />
           <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`} />
-          <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} subtitle="≥1.25 lender OK" />
-          <MetricCard label="LTV" value={formatPercent(results.ltv)} />
-          <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
           <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price" />
-          <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling" />
-          <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
-          <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"} />
-          <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`} />
-          <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt" />
+          {mode === "advanced" && (
+            <>
+              <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} subtitle="≥1.25 lender OK" />
+              <MetricCard label="LTV" value={formatPercent(results.ltv)} />
+              <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
+              <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling" />
+              <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
+              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"} />
+              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`} />
+              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt" />
+            </>
+          )}
         </div>
 
         <div className="panel">
@@ -293,20 +304,22 @@ function DealAnalyzerTab() {
           </ResponsiveContainer>
         </div>
 
-        <div className="panel">
-          <h3 className="text-lg font-semibold mb-4 font-display">{years}-year projections</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={results.projections}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 30% 22%)" />
-              <XAxis dataKey="year" stroke="hsl(240 18% 72%)" fontSize={12} />
-              <YAxis stroke="hsl(240 18% 72%)" fontSize={12} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="cashFlow" name="Annual Cash Flow" fill="hsl(244 75% 62%)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="equity" name="Equity" fill="hsl(152 70% 55%)" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {mode === "advanced" && (
+          <div className="panel">
+            <h3 className="text-lg font-semibold mb-4 font-display">{years}-year projections</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={results.projections}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 30% 22%)" />
+                <XAxis dataKey="year" stroke="hsl(240 18% 72%)" fontSize={12} />
+                <YAxis stroke="hsl(240 18% 72%)" fontSize={12} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => formatCurrency(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="cashFlow" name="Annual Cash Flow" fill="hsl(244 75% 62%)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="equity" name="Equity" fill="hsl(152 70% 55%)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         <div className="panel text-xs text-muted-foreground flex items-start gap-2">
           <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
