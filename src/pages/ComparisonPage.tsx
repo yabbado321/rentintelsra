@@ -115,6 +115,8 @@ export default function ComparisonPage() {
         <p className="text-muted-foreground mt-2">Stack multiple deals side-by-side with the same realistic cost model used by lenders.</p>
       </header>
 
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode keeps only price, rent, down payment & rate. Advanced unlocks taxes, insurance, HOA, and reserves." />
+
       <div className="panel space-y-5">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Add Property</h3>
         <div>
@@ -124,16 +126,20 @@ export default function ComparisonPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Num id="cmp-price" label="Purchase Price ($)" value={price} onChange={setPrice} step={1000} />
           <Num id="cmp-rent" label="Monthly Rent ($)" value={rent} onChange={setRent} step={25} />
-          <Num id="cmp-rehab" label="Rehab ($)" value={rehab} onChange={setRehab} step={500} />
-          <Num id="cmp-close" label="Closing (%)" value={closingPct} onChange={setClosingPct} step={0.1} />
           <Num id="cmp-dp" label="Down Payment (%)" value={downPct} onChange={setDownPct} step={1} />
           <Num id="cmp-rate" label="Interest Rate (%)" value={rate} onChange={setRate} step={0.1} />
-          <Num id="cmp-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
-          <Num id="cmp-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
-          <Num id="cmp-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
-          <Num id="cmp-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
-          <Num id="cmp-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
-          <Num id="cmp-maint" label="Maint + CapEx (%)" value={maintPct + capexPct} onChange={(v) => { setMaintPct(v * 0.6); setCapexPct(v * 0.4); }} step={1} />
+          {mode === "advanced" && (
+            <>
+              <Num id="cmp-rehab" label="Rehab ($)" value={rehab} onChange={setRehab} step={500} />
+              <Num id="cmp-close" label="Closing (%)" value={closingPct} onChange={setClosingPct} step={0.1} />
+              <Num id="cmp-tax" label="Property Tax (%/yr)" value={taxPct} onChange={setTaxPct} step={0.05} />
+              <Num id="cmp-ins" label="Insurance (%/yr)" value={insPct} onChange={setInsPct} step={0.05} />
+              <Num id="cmp-hoa" label="HOA ($/mo)" value={hoa} onChange={setHoa} step={10} />
+              <Num id="cmp-vac" label="Vacancy (%)" value={vacPct} onChange={setVacPct} step={1} />
+              <Num id="cmp-mgmt" label="Management (%)" value={mgmtPct} onChange={setMgmtPct} step={1} />
+              <Num id="cmp-maint" label="Maint + CapEx (%)" value={maintPct + capexPct} onChange={(v) => { setMaintPct(v * 0.6); setCapexPct(v * 0.4); }} step={1} />
+            </>
+          )}
         </div>
         <button onClick={addProperty} className="btn-primary">
           <Plus className="w-4 h-4" /> Add to Comparison
