@@ -393,6 +393,16 @@ function DealAnalyzerTab() {
           </div>
         )}
 
+        <div className="panel space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold font-display">Executive Underwriting Report</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Institutional-grade PDF — capital stack, monthly cash flow, and Monte Carlo risk. Ready for lenders and equity partners.
+            </p>
+          </div>
+          <PdfDownloadButton data={pdfData} />
+        </div>
+
         <div className="panel text-xs text-muted-foreground flex items-start gap-2">
           <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
           <span>NOI excludes mortgage. Cap rate uses ARV when set. PMI auto-applies under 20% down at 0.75% of loan/yr. Update assumptions to stress-test the deal.</span>
