@@ -496,19 +496,38 @@ function AffordabilityTab() {
   );
 }
 
-function Num({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
-  return <InputField id={id} label={label} value={value} onChange={onChange} step={step} />;
+function Num({ id, label, value, onChange, step = 1, nonNegative = true }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number; nonNegative?: boolean }) {
+  return <InputField id={id} label={label} value={value} onChange={onChange} step={step} nonNegative={nonNegative} />;
 }
 function Slider({ id, label, value, onChange, min, max }: { id?: string; label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
   return <SliderField id={id} label={label} value={value} onChange={onChange} min={min} max={max} />;
 }
 
-function InputField({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
+function InputField({
+  id, label, value, onChange, step = 1, nonNegative = true,
+}: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number; nonNegative?: boolean }) {
   const inputId = id || label.replace(/\s+/g, "-").toLowerCase();
+  const invalid = nonNegative && value < 0;
+  const errorId = `${inputId}-err`;
   return (
     <div>
       <label htmlFor={inputId} className="text-xs font-medium text-muted-foreground block mb-1.5">{label}</label>
-      <input id={inputId} type="number" value={value} step={step} onChange={(e) => onChange(Number(e.target.value))} className="input-field font-mono" />
+      <input
+        id={inputId}
+        type="number"
+        value={value}
+        step={step}
+        min={nonNegative ? 0 : undefined}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`input-field font-mono ${invalid ? "border-destructive ring-1 ring-destructive/60 focus:ring-destructive" : ""}`}
+      />
+      {invalid && (
+        <p id={errorId} className="mt-1 text-[10px] font-medium text-destructive">
+          Value cannot be negative — enter 0 or more.
+        </p>
+      )}
     </div>
   );
 }
