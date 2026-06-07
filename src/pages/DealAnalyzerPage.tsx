@@ -54,32 +54,32 @@ export default function DealAnalyzerPage() {
 function DealAnalyzerTab() {
   const [mode, setMode] = useState<Mode>("simple");
   // Property
-  const [propName, setPropName] = useState("Untitled Deal");
-  const [price, setPrice] = useState(250000);
-  const [rehab, setRehab] = useState(0);
-  const [arv, setArv] = useState(0); // after-repair value (0 = use price)
-  const [closingPct, setClosingPct] = useState(3);
+  const [propName, setPropName] = useSessionState("deal.propName", "Untitled Deal");
+  const [price, setPrice] = useSessionState("deal.price", 250000);
+  const [rehab, setRehab] = useSessionState("deal.rehab", 0);
+  const [arv, setArv] = useSessionState("deal.arv", 0); // after-repair value (0 = use price)
+  const [closingPct, setClosingPct] = useSessionState("deal.closingPct", 3);
   // Financing
-  const [downPct, setDownPct] = useState(20);
-  const [interestRate, setInterestRate] = useState(6.5);
-  const [loanTerm, setLoanTerm] = useState(30);
+  const [downPct, setDownPct] = useSessionState("deal.downPct", 20);
+  const [interestRate, setInterestRate] = useSessionState("deal.interestRate", 6.5);
+  const [loanTerm, setLoanTerm] = useSessionState("deal.loanTerm", 30);
   // Income
-  const [rent, setRent] = useState(2200);
-  const [otherIncome, setOtherIncome] = useState(0); // laundry, parking, pet
+  const [rent, setRent] = useSessionState("deal.rent", 2200);
+  const [otherIncome, setOtherIncome] = useSessionState("deal.otherIncome", 0);
   // Fixed monthly costs
-  const [taxRatePct, setTaxRatePct] = useState(1.2);   // % of value /yr
-  const [insRatePct, setInsRatePct] = useState(0.45);  // % of value /yr
-  const [hoa, setHoa] = useState(0);
-  // Variable % of rent
-  const [vacPct, setVacPct] = useState(5);
-  const [mgmtPct, setMgmtPct] = useState(8);
-  const [maintPct, setMaintPct] = useState(8);
-  const [capexPct, setCapexPct] = useState(5);
+  const [taxRatePct, setTaxRatePct] = useSessionState("deal.taxRatePct", 1.2);
+  const [insRatePct, setInsRatePct] = useSessionState("deal.insRatePct", 0.45);
+  const [hoa, setHoa] = useSessionState("deal.hoa", 0);
+  // Variable % of rent — smart macro defaults
+  const [vacPct, setVacPct] = useSessionState("deal.vacPct", 5);
+  const [mgmtPct, setMgmtPct] = useSessionState("deal.mgmtPct", 8);
+  const [maintPct, setMaintPct] = useSessionState("deal.maintPct", 5);
+  const [capexPct, setCapexPct] = useSessionState("deal.capexPct", 5);
   // Projection assumptions
-  const [rentGrowth, setRentGrowth] = useState(3);
-  const [expGrowth, setExpGrowth] = useState(2.5);
-  const [appreciation, setAppreciation] = useState(3);
-  const [years, setYears] = useState(10);
+  const [rentGrowth, setRentGrowth] = useSessionState("deal.rentGrowth", 3);
+  const [expGrowth, setExpGrowth] = useSessionState("deal.expGrowth", 3); // inflation baseline
+  const [appreciation, setAppreciation] = useSessionState("deal.appreciation", 3);
+  const [years, setYears] = useSessionState("deal.years", 10);
 
   const results = useMemo(() => {
     const totalCost = price + rehab + price * (closingPct / 100);
