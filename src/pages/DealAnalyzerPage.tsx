@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { calculateMortgage, formatCurrency, formatPercent, findBreakeven } from "@/lib/calculations";
+import { calculateMortgage, formatCurrency, formatPercent, findBreakeven, runMonteCarlo } from "@/lib/calculations";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
+import PdfDownloadButton from "@/components/PdfDownloadButton";
+import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
