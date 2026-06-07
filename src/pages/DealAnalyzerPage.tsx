@@ -5,6 +5,7 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
+import { useSessionState } from "@/hooks/useSessionState";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
@@ -53,32 +54,32 @@ export default function DealAnalyzerPage() {
 function DealAnalyzerTab() {
   const [mode, setMode] = useState<Mode>("simple");
   // Property
-  const [propName, setPropName] = useState("Untitled Deal");
-  const [price, setPrice] = useState(250000);
-  const [rehab, setRehab] = useState(0);
-  const [arv, setArv] = useState(0); // after-repair value (0 = use price)
-  const [closingPct, setClosingPct] = useState(3);
+  const [propName, setPropName] = useSessionState("deal.propName", "Untitled Deal");
+  const [price, setPrice] = useSessionState("deal.price", 250000);
+  const [rehab, setRehab] = useSessionState("deal.rehab", 0);
+  const [arv, setArv] = useSessionState("deal.arv", 0); // after-repair value (0 = use price)
+  const [closingPct, setClosingPct] = useSessionState("deal.closingPct", 3);
   // Financing
-  const [downPct, setDownPct] = useState(20);
-  const [interestRate, setInterestRate] = useState(6.5);
-  const [loanTerm, setLoanTerm] = useState(30);
+  const [downPct, setDownPct] = useSessionState("deal.downPct", 20);
+  const [interestRate, setInterestRate] = useSessionState("deal.interestRate", 6.5);
+  const [loanTerm, setLoanTerm] = useSessionState("deal.loanTerm", 30);
   // Income
-  const [rent, setRent] = useState(2200);
-  const [otherIncome, setOtherIncome] = useState(0); // laundry, parking, pet
+  const [rent, setRent] = useSessionState("deal.rent", 2200);
+  const [otherIncome, setOtherIncome] = useSessionState("deal.otherIncome", 0);
   // Fixed monthly costs
-  const [taxRatePct, setTaxRatePct] = useState(1.2);   // % of value /yr
-  const [insRatePct, setInsRatePct] = useState(0.45);  // % of value /yr
-  const [hoa, setHoa] = useState(0);
-  // Variable % of rent
-  const [vacPct, setVacPct] = useState(5);
-  const [mgmtPct, setMgmtPct] = useState(8);
-  const [maintPct, setMaintPct] = useState(8);
-  const [capexPct, setCapexPct] = useState(5);
+  const [taxRatePct, setTaxRatePct] = useSessionState("deal.taxRatePct", 1.2);
+  const [insRatePct, setInsRatePct] = useSessionState("deal.insRatePct", 0.45);
+  const [hoa, setHoa] = useSessionState("deal.hoa", 0);
+  // Variable % of rent — smart macro defaults
+  const [vacPct, setVacPct] = useSessionState("deal.vacPct", 5);
+  const [mgmtPct, setMgmtPct] = useSessionState("deal.mgmtPct", 8);
+  const [maintPct, setMaintPct] = useSessionState("deal.maintPct", 5);
+  const [capexPct, setCapexPct] = useSessionState("deal.capexPct", 5);
   // Projection assumptions
-  const [rentGrowth, setRentGrowth] = useState(3);
-  const [expGrowth, setExpGrowth] = useState(2.5);
-  const [appreciation, setAppreciation] = useState(3);
-  const [years, setYears] = useState(10);
+  const [rentGrowth, setRentGrowth] = useSessionState("deal.rentGrowth", 3);
+  const [expGrowth, setExpGrowth] = useSessionState("deal.expGrowth", 3); // inflation baseline
+  const [appreciation, setAppreciation] = useSessionState("deal.appreciation", 3);
+  const [years, setYears] = useSessionState("deal.years", 10);
 
   const results = useMemo(() => {
     const totalCost = price + rehab + price * (closingPct / 100);
@@ -244,20 +245,32 @@ function DealAnalyzerTab() {
         ]} />
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab" />
-          <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"} />
-          <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`} />
-          <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price" />
+          <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab"
+            formula="(Price × Down%) + Rehab + (Price × Closing%)" />
+          <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"}
+            formula="P × [r(1+r)^n] / [(1+r)^n − 1]" formulaNote="r = monthly rate, n = term in months" />
+          <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`}
+            formula="(Gross Income − Vacancy − OpEx) × 12" formulaNote="OpEx excludes debt service" />
+          <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price"
+            formula="(Monthly Rent ÷ Purchase Price) × 100" formulaNote="≥ 1% is the classic cash-flow screen" />
           {mode === "advanced" && (
             <>
-              <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} subtitle="≥1.25 lender OK" />
-              <MetricCard label="LTV" value={formatPercent(results.ltv)} />
-              <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
-              <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling" />
-              <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
-              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"} />
-              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`} />
-              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt" />
+              <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1.2 ? "warning" : "danger"} subtitle="≥1.25 lender OK"
+                formula="NOI ÷ Annual Debt Service" formulaNote="Below 1.20 most DSCR lenders decline" />
+              <MetricCard label="LTV" value={formatPercent(results.ltv)}
+                formula="Loan Amount ÷ Property Value" />
+              <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent"
+                formula="Price ÷ (Gross Monthly Income × 12)" />
+              <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling"
+                formula="Gross Income × 50%" formulaNote="Quick sanity check on operating expenses" />
+              <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"}
+                formula="Total Cash In ÷ Annual Cash Flow" />
+              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"}
+                formula="(Cumulative CF + Year-5 Equity) ÷ Cash In" formulaNote="Includes amortization and appreciation" />
+              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`}
+                formula="Gross Income − (NOI ÷ 12)" />
+              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt"
+                formula="Annual Debt Service ÷ Annual Gross Income" />
             </>
           )}
         </div>
@@ -483,19 +496,38 @@ function AffordabilityTab() {
   );
 }
 
-function Num({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
-  return <InputField id={id} label={label} value={value} onChange={onChange} step={step} />;
+function Num({ id, label, value, onChange, step = 1, nonNegative = true }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number; nonNegative?: boolean }) {
+  return <InputField id={id} label={label} value={value} onChange={onChange} step={step} nonNegative={nonNegative} />;
 }
 function Slider({ id, label, value, onChange, min, max }: { id?: string; label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
   return <SliderField id={id} label={label} value={value} onChange={onChange} min={min} max={max} />;
 }
 
-function InputField({ id, label, value, onChange, step = 1 }: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number }) {
+function InputField({
+  id, label, value, onChange, step = 1, nonNegative = true,
+}: { id?: string; label: string; value: number; onChange: (v: number) => void; step?: number; nonNegative?: boolean }) {
   const inputId = id || label.replace(/\s+/g, "-").toLowerCase();
+  const invalid = nonNegative && value < 0;
+  const errorId = `${inputId}-err`;
   return (
     <div>
       <label htmlFor={inputId} className="text-xs font-medium text-muted-foreground block mb-1.5">{label}</label>
-      <input id={inputId} type="number" value={value} step={step} onChange={(e) => onChange(Number(e.target.value))} className="input-field font-mono" />
+      <input
+        id={inputId}
+        type="number"
+        value={value}
+        step={step}
+        min={nonNegative ? 0 : undefined}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`input-field font-mono ${invalid ? "border-destructive ring-1 ring-destructive/60 focus:ring-destructive" : ""}`}
+      />
+      {invalid && (
+        <p id={errorId} className="mt-1 text-[10px] font-medium text-destructive">
+          Value cannot be negative — enter 0 or more.
+        </p>
+      )}
     </div>
   );
 }
