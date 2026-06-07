@@ -181,6 +181,63 @@ function DealAnalyzerTab() {
       taxRatePct, insRatePct, hoa, vacPct, mgmtPct, maintPct, capexPct,
       rentGrowth, expGrowth, appreciation, years]);
 
+  // Lightweight Monte Carlo for the executive PDF (500 iters keeps it instant).
+  const monteCarlo = useMemo(() => {
+    const monthlyOpEx = ((rent * (vacPct + mgmtPct + maintPct + capexPct)) / 100)
+      + (results.valueBasis * (taxRatePct + insRatePct)) / 100 / 12 + hoa;
+    const iters = 500;
+    const { irrResults } = runMonteCarlo(
+      price, rent, monthlyOpEx, downPct, iters,
+      [Math.max(0, rentGrowth - 2), rentGrowth + 2],
+      [Math.max(0, expGrowth - 1), expGrowth + 2],
+      [Math.max(-2, appreciation - 3), appreciation + 3],
+      Math.max(3, Math.min(years, 10)),
+      interestRate,
+    );
+    const sorted = [...irrResults].sort((a, b) => a - b);
+    const p = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(q * sorted.length)))];
+    // Approx probability of negative Year-1 CF via rent/expense growth jitter
+    let neg = 0;
+    for (let i = 0; i < iters; i++) {
+      const r = rent * (1 + (Math.random() * 0.1 - 0.05));
+      const e = monthlyOpEx * (1 + (Math.random() * 0.15 - 0.05));
+      if ((r - e - results.mortgage - results.pmi) < 0) neg++;
+    }
+    return {
+      iterations: iters,
+      probNegativeCF: (neg / iters) * 100,
+      expectedIRR: sorted.reduce((a, b) => a + b, 0) / sorted.length,
+      irrP10: p(0.1),
+      irrP90: p(0.9),
+    };
+  }, [results, price, rent, downPct, interestRate, vacPct, mgmtPct, maintPct, capexPct,
+      taxRatePct, insRatePct, hoa, rentGrowth, expGrowth, appreciation, years]);
+
+  const pdfData: UnderwritingReportData = useMemo(() => ({
+    propertyName: propName,
+    purchasePrice: price,
+    cashOnCash: results.roi,
+    capRate: results.capRate,
+    dscr: results.dscr,
+    downPayment: price * (downPct / 100),
+    closingCosts: price * (closingPct / 100),
+    rehab,
+    loanAmount: results.loanAmt,
+    totalCashIn: results.cashIn,
+    grossRent: rent,
+    otherIncome,
+    vacancy: rent * (vacPct / 100),
+    operatingExpenses: (results.valueBasis * (taxRatePct + insRatePct)) / 100 / 12 + hoa
+      + rent * ((mgmtPct + maintPct + capexPct) / 100),
+    noiMonthly: results.noi / 12,
+    debtService: results.mortgage + results.pmi,
+    netCashFlow: results.annualCF / 12,
+    monteCarlo,
+  }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo]);
+
+
+
   return (
     <div className="space-y-6">
       <ModeToggle mode={mode} onChange={setMode} hint="Simple mode hides operating expense % sliders and growth assumptions. Advanced unlocks the full underwriting stack." />
