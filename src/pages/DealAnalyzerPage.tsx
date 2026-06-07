@@ -245,20 +245,32 @@ function DealAnalyzerTab() {
         ]} />
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab" />
-          <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"} />
-          <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`} />
-          <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price" />
+          <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab"
+            formula="(Price × Down%) + Rehab + (Price × Closing%)" />
+          <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"}
+            formula="P × [r(1+r)^n] / [(1+r)^n − 1]" formulaNote="r = monthly rate, n = term in months" />
+          <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`}
+            formula="(Gross Income − Vacancy − OpEx) × 12" formulaNote="OpEx excludes debt service" />
+          <MetricCard label="1% Rule" value={`${results.onePctTest.toFixed(2)}%`} variant={results.onePctTest >= 1 ? "success" : results.onePctTest >= 0.7 ? "warning" : "danger"} subtitle="rent ÷ price"
+            formula="(Monthly Rent ÷ Purchase Price) × 100" formulaNote="≥ 1% is the classic cash-flow screen" />
           {mode === "advanced" && (
             <>
-              <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1 ? "warning" : "danger"} subtitle="≥1.25 lender OK" />
-              <MetricCard label="LTV" value={formatPercent(results.ltv)} />
-              <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent" />
-              <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling" />
-              <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"} />
-              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"} />
-              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`} />
-              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt" />
+              <MetricCard label="DSCR" value={results.dscr.toFixed(2)} variant={results.dscr >= 1.25 ? "success" : results.dscr >= 1.2 ? "warning" : "danger"} subtitle="≥1.25 lender OK"
+                formula="NOI ÷ Annual Debt Service" formulaNote="Below 1.20 most DSCR lenders decline" />
+              <MetricCard label="LTV" value={formatPercent(results.ltv)}
+                formula="Loan Amount ÷ Property Value" />
+              <MetricCard label="GRM" value={results.grm.toFixed(1)} subtitle="price ÷ annual rent"
+                formula="Price ÷ (Gross Monthly Income × 12)" />
+              <MetricCard label="50% Rule OpEx" value={`${formatCurrency(results.fiftyPctRule / 12)}/mo`} subtitle="implied ceiling"
+                formula="Gross Income × 50%" formulaNote="Quick sanity check on operating expenses" />
+              <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"}
+                formula="Total Cash In ÷ Annual Cash Flow" />
+              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"}
+                formula="(Cumulative CF + Year-5 Equity) ÷ Cash In" formulaNote="Includes amortization and appreciation" />
+              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`}
+                formula="Gross Income − (NOI ÷ 12)" />
+              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt"
+                formula="Annual Debt Service ÷ Annual Gross Income" />
             </>
           )}
         </div>
