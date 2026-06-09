@@ -5,6 +5,7 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 import { Receipt, TrendingUp, BookOpen } from "lucide-react";
+import { useSharedField } from "@/lib/propertyStore";
 
 const TOOLTIP_STYLE = {
   background: "hsl(235 50% 11%)",
