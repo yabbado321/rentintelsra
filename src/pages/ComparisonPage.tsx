@@ -4,6 +4,7 @@ import MetricCard from "@/components/MetricCard";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { Plus, Trash2, Building2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useSharedField } from "@/lib/propertyStore";
 
 interface Property {
   name: string;
