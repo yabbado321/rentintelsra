@@ -5,6 +5,7 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from "recharts";
 import { Activity, GitBranch, Play, Loader2, Info } from "lucide-react";
+import { useSharedField } from "@/lib/propertyStore";
 
 const TOOLTIP_STYLE = {
   background: "hsl(235 50% 11%)",
@@ -40,10 +41,10 @@ export default function AdvancedToolsPage() {
 
 function MonteCarloTab() {
   const [mode, setMode] = useState<Mode>("simple");
-  const [price, setPrice] = useState(250000);
-  const [rent, setRent] = useState(2200);
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [downPct, setDownPct] = useSharedField("downPayment");
   const [expenses, setExpenses] = useState(800);
-  const [downPct, setDownPct] = useState(20);
   const [rate, setRate] = useState(6.5);
   const [years, setYears] = useState(5);
   const [preset, setPreset] = useState<"conservative" | "balanced" | "aggressive" | "custom">("balanced");
@@ -221,10 +222,10 @@ function MonteCarloTab() {
 
 function ScenarioTab() {
   const [mode, setMode] = useState<Mode>("simple");
-  const [price, setPrice] = useState(250000);
-  const [rent, setRent] = useState(2200);
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [downPct, setDownPct] = useSharedField("downPayment");
   const [expenses, setExpenses] = useState(800);
-  const [downPct, setDownPct] = useState(20);
   const [rate, setRate] = useState(6.5);
   const [years, setYears] = useState(10);
 

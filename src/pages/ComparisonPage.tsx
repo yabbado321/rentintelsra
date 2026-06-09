@@ -4,6 +4,7 @@ import MetricCard from "@/components/MetricCard";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { Plus, Trash2, Building2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useSharedField } from "@/lib/propertyStore";
 
 interface Property {
   name: string;
@@ -45,22 +46,21 @@ export default function ComparisonPage() {
   const [mode, setMode] = useState<Mode>("simple");
   const [properties, setProperties] = useState<Property[]>([]);
   const [name, setName] = useState("");
-  // basics
-  const [price, setPrice] = useState(250000);
-  const [rent, setRent] = useState(2200);
-  // financing
-  const [downPct, setDownPct] = useState(20);
+  // Shared property fields — sync with the active property across calculators
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [downPct, setDownPct] = useSharedField("downPayment");
+  const [taxPct, setTaxPct] = useSharedField("taxes");
+  const [insPct, setInsPct] = useSharedField("insurance");
+  const [vacPct, setVacPct] = useSharedField("vacancyRate");
+  const [maintPct, setMaintPct] = useSharedField("maintenance");
+  const [capexPct, setCapexPct] = useSharedField("capex");
+  // Calculator-local
   const [rate, setRate] = useState(6.5);
   const [closingPct, setClosingPct] = useState(3);
   const [rehab, setRehab] = useState(0);
-  // recurring
-  const [taxPct, setTaxPct] = useState(1.2);
-  const [insPct, setInsPct] = useState(0.45);
   const [hoa, setHoa] = useState(0);
-  const [vacPct, setVacPct] = useState(5);
   const [mgmtPct, setMgmtPct] = useState(8);
-  const [maintPct, setMaintPct] = useState(8);
-  const [capexPct, setCapexPct] = useState(5);
 
   const addProperty = () => {
     const mortgage = calculateMortgage(price, downPct, rate, 30);

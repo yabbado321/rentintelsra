@@ -5,6 +5,7 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 import { Receipt, TrendingUp, BookOpen } from "lucide-react";
+import { useSharedField } from "@/lib/propertyStore";
 
 const TOOLTIP_STYLE = {
   background: "hsl(235 50% 11%)",
@@ -31,24 +32,22 @@ function irr(cashflows: number[], guess = 0.1): number {
 }
 
 export default function ROITaxesPage() {
-  // Acquisition
-  const [price, setPrice] = useState(250000);
+  // Shared property fields — two-way bound to the global Property Hub
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [downPct, setDownPct] = useSharedField("downPayment");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [taxPct, setTaxPct] = useSharedField("taxes");
+  const [insPct, setInsPct] = useSharedField("insurance");
+  const [vacPct, setVacPct] = useSharedField("vacancyRate");
+  const [maintPct, setMaintPct] = useSharedField("maintenance");
+  const [capexPct, setCapexPct] = useSharedField("capex");
+  // Calculator-local
   const [closingPct, setClosingPct] = useState(3);
   const [rehab, setRehab] = useState(0);
-  // Financing
-  const [downPct, setDownPct] = useState(20);
   const [interestRate, setInterestRate] = useState(6.5);
   const [loanTerm, setLoanTerm] = useState(30);
-  // Income
-  const [rent, setRent] = useState(2200);
-  // Expenses
-  const [taxPct, setTaxPct] = useState(1.2);
-  const [insPct, setInsPct] = useState(0.45);
   const [hoa, setHoa] = useState(0);
-  const [vacPct, setVacPct] = useState(5);
   const [mgmtPct, setMgmtPct] = useState(8);
-  const [maintPct, setMaintPct] = useState(8);
-  const [capexPct, setCapexPct] = useState(5);
   // Growth
   const [rentGrowth, setRentGrowth] = useState(3);
   const [expGrowth, setExpGrowth] = useState(2.5);
