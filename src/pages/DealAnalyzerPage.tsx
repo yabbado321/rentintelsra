@@ -76,6 +76,7 @@ function DealAnalyzerTab() {
   const [loanTerm, setLoanTerm] = useSessionState("deal.loanTerm", 30);
   const [otherIncome, setOtherIncome] = useSessionState("deal.otherIncome", 0);
   const [hoa, setHoa] = useSessionState("deal.hoa", 0);
+  const [mgmtPct, setMgmtPct] = useSessionState("deal.mgmtPct", 8);
   // Projection assumptions
   const [rentGrowth, setRentGrowth] = useSessionState("deal.rentGrowth", 3);
   const [expGrowth, setExpGrowth] = useSessionState("deal.expGrowth", 3); // inflation baseline
