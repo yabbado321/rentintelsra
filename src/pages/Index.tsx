@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AppLayout, { type Page } from "@/components/AppLayout";
+import PropertySelector from "@/components/PropertySelector";
 import HomePage from "./HomePage";
 import ZipLookupPage from "./ZipLookupPage";
 import DealAnalyzerPage from "./DealAnalyzerPage";
@@ -11,6 +12,8 @@ import PortfolioDashboardPage from "./PortfolioDashboardPage";
 import PricingToolPage from "./PricingToolPage";
 import MaintenancePage from "./MaintenancePage";
 import CommsPage from "./CommsPage";
+
+const CALCULATOR_PAGES: Page[] = ["deal", "roi", "comparison", "advanced"];
 
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
@@ -34,6 +37,11 @@ export default function Index() {
 
   return (
     <AppLayout activePage={page} onPageChange={setPage}>
+      {CALCULATOR_PAGES.includes(page) && (
+        <div className="mb-6">
+          <PropertySelector />
+        </div>
+      )}
       {renderPage()}
     </AppLayout>
   );

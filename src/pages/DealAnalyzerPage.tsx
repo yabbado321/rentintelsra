@@ -8,6 +8,7 @@ import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
+import { useSharedField } from "@/lib/propertyStore";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
@@ -55,28 +56,27 @@ export default function DealAnalyzerPage() {
 
 function DealAnalyzerTab() {
   const [mode, setMode] = useState<Mode>("simple");
-  // Property
-  const [propName, setPropName] = useSessionState("deal.propName", "Untitled Deal");
-  const [price, setPrice] = useSessionState("deal.price", 250000);
+  // ===== Shared property fields — two-way bound to the global Property Hub =====
+  // Editing any of these on ANY calculator updates the active property instantly.
+  const [propName, setPropName] = useSharedField("address");
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [downPct, setDownPct] = useSharedField("downPayment");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [vacPct, setVacPct] = useSharedField("vacancyRate");
+  const [taxRatePct, setTaxRatePct] = useSharedField("taxes");
+  const [insRatePct, setInsRatePct] = useSharedField("insurance");
+  const [maintPct, setMaintPct] = useSharedField("maintenance");
+  const [capexPct, setCapexPct] = useSharedField("capex");
+
+  // ===== Calculator-local assumptions (stay per-calculator) =====
   const [rehab, setRehab] = useSessionState("deal.rehab", 0);
   const [arv, setArv] = useSessionState("deal.arv", 0); // after-repair value (0 = use price)
   const [closingPct, setClosingPct] = useSessionState("deal.closingPct", 3);
-  // Financing
-  const [downPct, setDownPct] = useSessionState("deal.downPct", 20);
   const [interestRate, setInterestRate] = useSessionState("deal.interestRate", 6.5);
   const [loanTerm, setLoanTerm] = useSessionState("deal.loanTerm", 30);
-  // Income
-  const [rent, setRent] = useSessionState("deal.rent", 2200);
   const [otherIncome, setOtherIncome] = useSessionState("deal.otherIncome", 0);
-  // Fixed monthly costs
-  const [taxRatePct, setTaxRatePct] = useSessionState("deal.taxRatePct", 1.2);
-  const [insRatePct, setInsRatePct] = useSessionState("deal.insRatePct", 0.45);
   const [hoa, setHoa] = useSessionState("deal.hoa", 0);
-  // Variable % of rent — smart macro defaults
-  const [vacPct, setVacPct] = useSessionState("deal.vacPct", 5);
   const [mgmtPct, setMgmtPct] = useSessionState("deal.mgmtPct", 8);
-  const [maintPct, setMaintPct] = useSessionState("deal.maintPct", 5);
-  const [capexPct, setCapexPct] = useSessionState("deal.capexPct", 5);
   // Projection assumptions
   const [rentGrowth, setRentGrowth] = useSessionState("deal.rentGrowth", 3);
   const [expGrowth, setExpGrowth] = useSessionState("deal.expGrowth", 3); // inflation baseline
