@@ -222,10 +222,10 @@ function MonteCarloTab() {
 
 function ScenarioTab() {
   const [mode, setMode] = useState<Mode>("simple");
-  const [price, setPrice] = useState(250000);
-  const [rent, setRent] = useState(2200);
+  const [price, setPrice] = useSharedField("purchasePrice");
+  const [rent, setRent] = useSharedField("grossRent");
+  const [downPct, setDownPct] = useSharedField("downPayment");
   const [expenses, setExpenses] = useState(800);
-  const [downPct, setDownPct] = useState(20);
   const [rate, setRate] = useState(6.5);
   const [years, setYears] = useState(10);
 
