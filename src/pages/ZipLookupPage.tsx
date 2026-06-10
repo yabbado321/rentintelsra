@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
+import MarketDashboard from "@/components/MarketDashboard";
 
 interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; listedWithinMonths?: number; source?: string; }
 interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
@@ -134,6 +135,8 @@ export default function ZipLookupPage() {
         </h1>
         <p className="text-muted-foreground mt-2">Live area research, rent comps, demographics, and Street View — sourced from the web in real time.</p>
       </header>
+
+      <MarketDashboard defaultZip={zipCode} />
 
       <div className="panel space-y-4">
         <div>
