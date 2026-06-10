@@ -2,8 +2,11 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator } from "lucide-react";
+import { Loader2, MapPin, Users, Briefcase, GraduationCap, ShoppingBag, TrendingUp, AlertCircle, Home, Sparkles, Satellite, Music, Calculator, ArrowRight, Rocket } from "lucide-react";
 import MarketDashboard from "@/components/MarketDashboard";
+import { usePropertyStore } from "@/lib/propertyStore";
+import { useToast } from "@/hooks/use-toast";
+import type { Page } from "@/components/AppLayout";
 
 interface Comp { address: string; beds: number; baths: number; sqft: number; rent: number; distanceMi: number; listedWithinMonths?: number; source?: string; }
 interface EntertainmentItem { name: string; category: string; distanceMi: number; ageRange: string; blurb: string; }
@@ -70,7 +73,11 @@ const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n || 0);
 const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n || 0);
 
-export default function ZipLookupPage() {
+type IntelTab = "deal" | "market" | "audit";
+
+export default function ZipLookupPage({ onNavigate }: { onNavigate?: (page: Page) => void } = {}) {
+  const [tab, setTab] = useState<IntelTab>("deal");
+  const { toast } = useToast();
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [listingUrl, setListingUrl] = useState("");
@@ -218,6 +225,27 @@ export default function ZipLookupPage() {
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">{data.area.neighborhoodSummary}</p>
           </div>
+
+          {/* 3-Tab Market Intelligence Terminal */}
+          <div className="flex gap-2 flex-wrap sticky top-2 z-10 bg-background/80 backdrop-blur py-2 -mx-1 px-1 rounded-lg">
+            {([
+              ["deal", "The Deal", "Micro property data"],
+              ["market", "The Market", "Macro area data"],
+              ["audit", "Data Audit", "Sources & confidence"],
+            ] as [IntelTab, string, string][]).map(([id, label, sub]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`tab-pill ${tab === id ? "tab-pill-active" : "tab-pill-inactive"}`}
+                title={sub}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "deal" && (<>
+
 
           {/* Satellite + Street Map (when geo found) */}
           {data.geo && (
@@ -496,6 +524,34 @@ export default function ZipLookupPage() {
             </div>
           </div>
 
+          {/* === Underwrite This Deal CTA === */}
+          <div className="sticky bottom-3 z-20">
+            <button
+              onClick={() => {
+                if (!data) return;
+                const valueMedian = data.property?.valueTriangulation?.medianUsed ?? data.property?.estimatedValue ?? data.economy?.medianHomePrice ?? 0;
+                const rentEstimate = data.property?.rentMaxStrategy?.recommendedRent ?? data.rentEstimates?.subjectEstimate ?? 0;
+                const store = usePropertyStore.getState();
+                store.addProperty({
+                  address: data.property?.addressNormalized || `${data.area.city}, ${data.area.state} ${zipCode}`,
+                  purchasePrice: Math.round(valueMedian) || 250000,
+                  grossRent: Math.round(rentEstimate) || 2000,
+                  vacancyRate: data.rentalDemand?.vacancyRatePct ?? 5,
+                  squareFootage: sqft || undefined,
+                  yearBuilt: data.property?.yearBuilt,
+                  zip: zipCode,
+                });
+                toast({ title: "Deal loaded into the underwriter", description: `${data.property?.addressNormalized || data.area.city} is now your active property.` });
+                onNavigate?.("deal");
+              }}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl gradient-primary text-primary-foreground font-bold text-base shadow-elegant hover:opacity-95 transition-all"
+            >
+              <Rocket className="w-5 h-5" /> Underwrite This Deal <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
+          </>)}
+
+          {tab === "market" && (<>
           {/* Entertainment by age group */}
           {data.entertainment && (
             <div className="bg-card rounded-xl p-6 border border-border">
@@ -609,6 +665,9 @@ export default function ZipLookupPage() {
             </div>
           </div>
 
+          </>)}
+
+          {tab === "audit" && (<>
           {/* Sources */}
           {data.rentEstimates.sources?.length > 0 && (
             <div className="bg-card rounded-xl p-5 border border-border">
@@ -664,6 +723,7 @@ export default function ZipLookupPage() {
               </div>
             </div>
           )}
+          </>)}
         </div>
       )}
     </div>
