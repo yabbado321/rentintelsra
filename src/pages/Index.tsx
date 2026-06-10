@@ -26,7 +26,7 @@ export default function Index() {
       case "pricing": return <PricingToolPage />;
       case "maintenance": return <MaintenancePage />;
       case "comms": return <CommsPage />;
-      case "zip": return <ZipLookupPage />;
+      case "zip": return <ZipLookupPage onNavigate={(p) => setPage(p as Page)} />;
       case "deal": return <DealAnalyzerPage />;
       case "roi": return <ROITaxesPage />;
       case "comparison": return <ComparisonPage />;
