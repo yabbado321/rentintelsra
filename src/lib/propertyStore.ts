@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
  * Centralized Property Hub
  * -----------------------------------------------------------------------------
  * Single source of truth for property-level inputs shared across every
- * calculator + a small market-data cache keyed by ZIP for fallback values.
+ * calculator.
  */
 
 export interface Property {
@@ -19,23 +19,10 @@ export interface Property {
   insurance: number;     // annual insurance rate as % of value (e.g. 0.45)
   maintenance: number;   // percent of rent (e.g. 5)
   capex: number;         // percent of rent (e.g. 5)
-  // Optional metadata pulled from RentCast
+  // Optional metadata
   squareFootage?: number;
   yearBuilt?: number;
   zip?: string;
-}
-
-export interface ZipMarketData {
-  zip: string;
-  medianRent: number;
-  avgPricePerSqft: number;
-  medianPrice: number;
-  vacancyRatePct: number;
-  avgDaysOnMarket: number;
-  grossYieldPct: number;
-  yieldLabel: string;
-  bedroomRents?: Record<string, number>;
-  fetchedAt: number;
 }
 
 export const BLANK_PROPERTY: Omit<Property, "id"> = {
@@ -53,16 +40,11 @@ export const BLANK_PROPERTY: Omit<Property, "id"> = {
 interface PropertyStore {
   properties: Property[];
   activePropertyId: string;
-  zipCache: Record<string, ZipMarketData>;
   addProperty: (seed?: Partial<Omit<Property, "id">>) => string;
   removeProperty: (id: string) => void;
   setActiveProperty: (id: string) => void;
   updateActiveProperty: <K extends keyof Property>(field: K, value: Property[K]) => void;
   renameActiveProperty: (address: string) => void;
-  /** Merge a RentCast address payload into the active property (only overwrites fields with valid values). */
-  applyRentCastPayload: (payload: Partial<Property> & { annualTaxes?: number }) => void;
-  cacheZip: (z: ZipMarketData) => void;
-  getZip: (zip: string) => ZipMarketData | undefined;
 }
 
 function uid() {
@@ -77,7 +59,6 @@ export const usePropertyStore = create<PropertyStore>()(
     (set, get) => ({
       properties: [seedProperty],
       activePropertyId: seedId,
-      zipCache: {},
 
       addProperty: (seed) => {
         const id = uid();
@@ -118,37 +99,6 @@ export const usePropertyStore = create<PropertyStore>()(
             p.id === s.activePropertyId ? { ...p, address } : p
           ),
         })),
-
-      applyRentCastPayload: (payload) =>
-        set((s) => {
-          const zipFallback = payload.zip ? s.zipCache[payload.zip] : undefined;
-          return {
-            properties: s.properties.map((p) => {
-              if (p.id !== s.activePropertyId) return p;
-              const next: Property = { ...p };
-              if (payload.address) next.address = payload.address;
-              if (payload.purchasePrice && payload.purchasePrice > 0) next.purchasePrice = Math.round(payload.purchasePrice);
-              if (payload.grossRent && payload.grossRent > 0) next.grossRent = Math.round(payload.grossRent);
-              if (payload.squareFootage) next.squareFootage = payload.squareFootage;
-              if (payload.yearBuilt) next.yearBuilt = payload.yearBuilt;
-              if (payload.zip) next.zip = payload.zip;
-              // Property taxes — RentCast returns dollars; convert to % of price.
-              if (payload.annualTaxes && payload.annualTaxes > 0 && (payload.purchasePrice ?? p.purchasePrice) > 0) {
-                next.taxes = +((payload.annualTaxes / (payload.purchasePrice ?? p.purchasePrice)) * 100).toFixed(2);
-              }
-              // ZIP fallback for missing fields
-              if (zipFallback) {
-                if (!payload.annualTaxes && zipFallback.vacancyRatePct) next.vacancyRate = zipFallback.vacancyRatePct;
-              }
-              return next;
-            }),
-          };
-        }),
-
-      cacheZip: (z) =>
-        set((s) => ({ zipCache: { ...s.zipCache, [z.zip]: { ...z, fetchedAt: Date.now() } } })),
-
-      getZip: (zip) => get().zipCache[zip],
     }),
     { name: "rentintel.propertyHub.v2" }
   )

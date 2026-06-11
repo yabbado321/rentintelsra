@@ -1,7 +1,6 @@
 import { useState } from "react";
 import AppLayout, { type Page } from "@/components/AppLayout";
 import PropertySelector from "@/components/PropertySelector";
-import PropertySearch from "@/components/PropertySearch";
 import HomePage from "./HomePage";
 import ZipLookupPage from "./ZipLookupPage";
 import DealAnalyzerPage from "./DealAnalyzerPage";
@@ -39,9 +38,8 @@ export default function Index() {
   return (
     <AppLayout activePage={page} onPageChange={setPage}>
       {CALCULATOR_PAGES.includes(page) && (
-        <div className="mb-6 space-y-3">
+        <div className="mb-6">
           <PropertySelector />
-          <PropertySearch />
         </div>
       )}
       {renderPage()}
