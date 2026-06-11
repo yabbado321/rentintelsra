@@ -78,11 +78,12 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', 'Inter', sans-serif;
     background-image:
-      radial-gradient(60rem 40rem at 85% -10%, hsl(244 75% 30% / 0.18), transparent 60%),
-      radial-gradient(50rem 35rem at -5% 100%, hsl(262 83% 35% / 0.15), transparent 65%),
-      linear-gradient(180deg, hsl(240 55% 5%), hsl(240 50% 4%));
+      radial-gradient(70rem 50rem at 90% -15%, hsl(258 90% 40% / 0.22), transparent 60%),
+      radial-gradient(60rem 45rem at -10% 110%, hsl(220 95% 40% / 0.20), transparent 65%),
+      radial-gradient(40rem 30rem at 50% 50%, hsl(240 80% 30% / 0.08), transparent 70%),
+      linear-gradient(180deg, hsl(232 50% 5%), hsl(232 45% 3%));
     background-attachment: fixed;
     font-feature-settings: "ss01", "cv11";
   }
