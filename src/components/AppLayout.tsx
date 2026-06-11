@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Home, MapPin, BarChart3, TrendingUp, GitCompare, LineChart, BookOpen, Menu, X, Mail, LayoutDashboard, Wrench, MessageSquare } from "lucide-react";
+import SettingsMenu from "./SettingsMenu";
 
 type Page = "home" | "dashboard" | "pricing" | "maintenance" | "comms" | "zip" | "deal" | "roi" | "comparison" | "advanced" | "help";
 
@@ -94,7 +95,12 @@ export default function AppLayout({ activePage, onPageChange, children }: AppLay
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <span className="font-display font-semibold text-sm gradient-text">RentIntel</span>
+          <div className="ml-auto"><SettingsMenu /></div>
         </header>
+
+        <div className="hidden lg:flex sticky top-0 z-30 items-center justify-end px-10 py-3 bg-background/40 backdrop-blur-xl border-b border-border/50">
+          <SettingsMenu />
+        </div>
 
         <div className="p-4 md:p-10 max-w-7xl mx-auto animate-fade-in">{children}</div>
       </main>
