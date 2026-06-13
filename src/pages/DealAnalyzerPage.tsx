@@ -235,8 +235,9 @@ function DealAnalyzerTab() {
     debtService: results.mortgage + results.pmi,
     netCashFlow: results.annualCF / 12,
     monteCarlo,
+    aiMemo: activeProperty.aiMemo,
   }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo]);
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo]);
 
 
 
