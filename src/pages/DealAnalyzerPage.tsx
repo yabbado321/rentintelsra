@@ -396,14 +396,22 @@ function DealAnalyzerTab() {
           </div>
         )}
 
-        <div className="panel space-y-3">
+        <div className="panel space-y-4">
           <div>
             <h3 className="text-sm font-semibold font-display">Executive Underwriting Report</h3>
             <p className="text-xs text-muted-foreground mt-1">
               Institutional-grade PDF — capital stack, monthly cash flow, and Monte Carlo risk. Ready for lenders and equity partners.
             </p>
           </div>
-          <PdfDownloadButton data={pdfData} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <AIMemoGenerator reportData={pdfData} />
+            <PdfDownloadButton data={pdfData} label={activeProperty.aiMemo ? "Export PDF (with AI Memo)" : "Export PDF"} />
+          </div>
+          {activeProperty.aiMemo && (
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              A saved AI memo will be stitched as cover pages 1–2 of the exported report.
+            </p>
+          )}
         </div>
 
         <div className="panel text-xs text-muted-foreground flex items-start gap-2">
