@@ -134,6 +134,14 @@ export interface UnderwritingReportData {
     irrP10: number;
     irrP90: number;
   };
+  // Optional AI-generated executive memo (stitched as cover pages 1-2)
+  aiMemo?: {
+    executiveSummary: string;
+    financialAnalysis: string;
+    riskAppraisal: string;
+    valueAddRecommendations: string;
+    updatedAt: string;
+  };
 }
 
 function KpiBox({ label, value, positive, foot }: { label: string; value: string; positive?: boolean; foot?: string }) {
@@ -166,6 +174,9 @@ export default function UnderwritingReportPDF({ data }: { data: UnderwritingRepo
 
   return (
     <Document title={`${firm} — ${data.propertyName} Underwriting`} author={firm}>
+      {/* AI Memo cover pages (stitched as pages 1-2 when a memo draft exists) */}
+      {data.aiMemo && <MemoCoverPages data={data} firm={firm} today={today} />}
+
       <Page size="LETTER" style={styles.page}>
         {/* Header */}
         <View style={styles.header} fixed>
@@ -261,3 +272,97 @@ export default function UnderwritingReportPDF({ data }: { data: UnderwritingRepo
     </Document>
   );
 }
+
+// ---------------- AI Memo cover pages ----------------
+
+const memoStyles = StyleSheet.create({
+  page: {
+    paddingTop: 48,
+    paddingBottom: 56,
+    paddingHorizontal: 56,
+    fontSize: 11,
+    fontFamily: "Times-Roman",
+    color: COLORS.navy,
+    backgroundColor: "#fbfaf6",
+  },
+  eyebrow: {
+    fontSize: 8,
+    letterSpacing: 3,
+    color: COLORS.slateLight,
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+  title: { fontSize: 24, fontFamily: "Times-Bold", color: COLORS.navy, marginBottom: 6, lineHeight: 1.15 },
+  subtitle: { fontSize: 9, color: COLORS.slateLight, marginBottom: 22 },
+  divider: { borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 18 },
+  sectionHead: {
+    fontSize: 9,
+    fontFamily: "Times-Bold",
+    color: COLORS.slate,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  body: { fontSize: 11, lineHeight: 1.7, color: COLORS.navy, marginBottom: 18, textAlign: "justify" },
+  footer: {
+    position: "absolute",
+    bottom: 24,
+    left: 56,
+    right: 56,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  footerText: { fontSize: 7, color: COLORS.slateLight, letterSpacing: 1.5 },
+});
+
+function MemoCoverPages({ data, firm, today }: { data: UnderwritingReportData; firm: string; today: string }) {
+  const memo = data.aiMemo!;
+  return (
+    <>
+      {/* Page 1 — Executive Cover Sheet */}
+      <Page size="LETTER" style={memoStyles.page}>
+        <Text style={memoStyles.eyebrow}>{firm} · Confidential Investment Memorandum</Text>
+        <Text style={memoStyles.title}>{data.propertyName || "Untitled Deal"}</Text>
+        <Text style={memoStyles.subtitle}>
+          {data.address ? `${data.address}  ·  ` : ""}Prepared {today}
+        </Text>
+        <View style={memoStyles.divider} />
+
+        <Text style={memoStyles.sectionHead}>I. Executive Summary</Text>
+        <Text style={memoStyles.body}>{memo.executiveSummary}</Text>
+
+        <Text style={memoStyles.sectionHead}>II. Financial Performance Analysis</Text>
+        <Text style={memoStyles.body}>{memo.financialAnalysis}</Text>
+
+        <View style={memoStyles.footer} fixed>
+          <Text style={memoStyles.footerText}>{firm.toUpperCase()}  ·  COVER SHEET</Text>
+          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} / ${totalPages}`} />
+        </View>
+      </Page>
+
+      {/* Page 2 — Portfolio Summary (Risk + Value-Add) */}
+      <Page size="LETTER" style={memoStyles.page}>
+        <Text style={memoStyles.eyebrow}>{firm} · Portfolio Summary</Text>
+        <Text style={memoStyles.title}>Risk & Value-Add Thesis</Text>
+        <Text style={memoStyles.subtitle}>{data.propertyName}  ·  {today}</Text>
+        <View style={memoStyles.divider} />
+
+        <Text style={memoStyles.sectionHead}>III. Monte Carlo Risk Appraisal</Text>
+        <Text style={memoStyles.body}>{memo.riskAppraisal}</Text>
+
+        <Text style={memoStyles.sectionHead}>IV. Tactical Value-Add Recommendations</Text>
+        <Text style={memoStyles.body}>{memo.valueAddRecommendations}</Text>
+
+        <View style={memoStyles.footer} fixed>
+          <Text style={memoStyles.footerText}>{firm.toUpperCase()}  ·  PORTFOLIO SUMMARY</Text>
+          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} / ${totalPages}`} />
+        </View>
+      </Page>
+    </>
+  );
+}
+

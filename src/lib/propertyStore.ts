@@ -8,6 +8,14 @@ import { persist } from "zustand/middleware";
  * calculator.
  */
 
+export interface AIMemo {
+  executiveSummary: string;
+  financialAnalysis: string;
+  riskAppraisal: string;
+  valueAddRecommendations: string;
+  updatedAt: string; // ISO timestamp
+}
+
 export interface Property {
   id: string;
   address: string;
@@ -23,6 +31,8 @@ export interface Property {
   squareFootage?: number;
   yearBuilt?: number;
   zip?: string;
+  // Premium AI-generated investment memo (stitched into PDF cover pages)
+  aiMemo?: AIMemo;
 }
 
 export const BLANK_PROPERTY: Omit<Property, "id"> = {
@@ -45,6 +55,7 @@ interface PropertyStore {
   setActiveProperty: (id: string) => void;
   updateActiveProperty: <K extends keyof Property>(field: K, value: Property[K]) => void;
   renameActiveProperty: (address: string) => void;
+  setActiveMemo: (memo: AIMemo | undefined) => void;
 }
 
 function uid() {
@@ -97,6 +108,13 @@ export const usePropertyStore = create<PropertyStore>()(
         set((s) => ({
           properties: s.properties.map((p) =>
             p.id === s.activePropertyId ? { ...p, address } : p
+          ),
+        })),
+
+      setActiveMemo: (memo) =>
+        set((s) => ({
+          properties: s.properties.map((p) =>
+            p.id === s.activePropertyId ? { ...p, aiMemo: memo } : p
           ),
         })),
     }),

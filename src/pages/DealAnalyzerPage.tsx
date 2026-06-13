@@ -4,11 +4,12 @@ import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import PdfDownloadButton from "@/components/PdfDownloadButton";
+import AIMemoGenerator from "@/components/AIMemoGenerator";
 import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
-import { useSharedField } from "@/lib/propertyStore";
+import { useSharedField, useActiveProperty } from "@/lib/propertyStore";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
@@ -56,6 +57,7 @@ export default function DealAnalyzerPage() {
 
 function DealAnalyzerTab() {
   const [mode, setMode] = useState<Mode>("simple");
+  const activeProperty = useActiveProperty();
   // ===== Shared property fields — two-way bound to the global Property Hub =====
   // Editing any of these on ANY calculator updates the active property instantly.
   const [propName, setPropName] = useSharedField("address");
@@ -233,8 +235,9 @@ function DealAnalyzerTab() {
     debtService: results.mortgage + results.pmi,
     netCashFlow: results.annualCF / 12,
     monteCarlo,
+    aiMemo: activeProperty.aiMemo,
   }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo]);
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo]);
 
 
 
@@ -393,14 +396,22 @@ function DealAnalyzerTab() {
           </div>
         )}
 
-        <div className="panel space-y-3">
+        <div className="panel space-y-4">
           <div>
             <h3 className="text-sm font-semibold font-display">Executive Underwriting Report</h3>
             <p className="text-xs text-muted-foreground mt-1">
               Institutional-grade PDF — capital stack, monthly cash flow, and Monte Carlo risk. Ready for lenders and equity partners.
             </p>
           </div>
-          <PdfDownloadButton data={pdfData} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <AIMemoGenerator reportData={pdfData} />
+            <PdfDownloadButton data={pdfData} label={activeProperty.aiMemo ? "Export PDF (with AI Memo)" : "Export PDF"} />
+          </div>
+          {activeProperty.aiMemo && (
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              A saved AI memo will be stitched as cover pages 1–2 of the exported report.
+            </p>
+          )}
         </div>
 
         <div className="panel text-xs text-muted-foreground flex items-start gap-2">
