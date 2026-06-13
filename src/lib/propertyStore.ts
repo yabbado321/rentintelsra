@@ -55,6 +55,7 @@ interface PropertyStore {
   setActiveProperty: (id: string) => void;
   updateActiveProperty: <K extends keyof Property>(field: K, value: Property[K]) => void;
   renameActiveProperty: (address: string) => void;
+  setActiveMemo: (memo: AIMemo | undefined) => void;
 }
 
 function uid() {
