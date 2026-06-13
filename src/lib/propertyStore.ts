@@ -110,6 +110,13 @@ export const usePropertyStore = create<PropertyStore>()(
             p.id === s.activePropertyId ? { ...p, address } : p
           ),
         })),
+
+      setActiveMemo: (memo) =>
+        set((s) => ({
+          properties: s.properties.map((p) =>
+            p.id === s.activePropertyId ? { ...p, aiMemo: memo } : p
+          ),
+        })),
     }),
     { name: "rentintel.propertyHub.v2" }
   )
