@@ -174,6 +174,9 @@ export default function UnderwritingReportPDF({ data }: { data: UnderwritingRepo
 
   return (
     <Document title={`${firm} — ${data.propertyName} Underwriting`} author={firm}>
+      {/* AI Memo cover pages (stitched as pages 1-2 when a memo draft exists) */}
+      {data.aiMemo && <MemoCoverPages data={data} firm={firm} today={today} />}
+
       <Page size="LETTER" style={styles.page}>
         {/* Header */}
         <View style={styles.header} fixed>
