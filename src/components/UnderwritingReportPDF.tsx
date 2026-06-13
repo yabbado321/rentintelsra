@@ -134,6 +134,14 @@ export interface UnderwritingReportData {
     irrP10: number;
     irrP90: number;
   };
+  // Optional AI-generated executive memo (stitched as cover pages 1-2)
+  aiMemo?: {
+    executiveSummary: string;
+    financialAnalysis: string;
+    riskAppraisal: string;
+    valueAddRecommendations: string;
+    updatedAt: string;
+  };
 }
 
 function KpiBox({ label, value, positive, foot }: { label: string; value: string; positive?: boolean; foot?: string }) {
