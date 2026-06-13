@@ -57,6 +57,7 @@ export default function DealAnalyzerPage() {
 
 function DealAnalyzerTab() {
   const [mode, setMode] = useState<Mode>("simple");
+  const activeProperty = useActiveProperty();
   // ===== Shared property fields — two-way bound to the global Property Hub =====
   // Editing any of these on ANY calculator updates the active property instantly.
   const [propName, setPropName] = useSharedField("address");
