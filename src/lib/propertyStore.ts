@@ -8,6 +8,14 @@ import { persist } from "zustand/middleware";
  * calculator.
  */
 
+export interface AIMemo {
+  executiveSummary: string;
+  financialAnalysis: string;
+  riskAppraisal: string;
+  valueAddRecommendations: string;
+  updatedAt: string; // ISO timestamp
+}
+
 export interface Property {
   id: string;
   address: string;
@@ -23,6 +31,8 @@ export interface Property {
   squareFootage?: number;
   yearBuilt?: number;
   zip?: string;
+  // Premium AI-generated investment memo (stitched into PDF cover pages)
+  aiMemo?: AIMemo;
 }
 
 export const BLANK_PROPERTY: Omit<Property, "id"> = {
