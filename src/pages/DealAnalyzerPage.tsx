@@ -356,6 +356,23 @@ function DealAnalyzerTab() {
           { label: "Score", value: `${results.score.toFixed(0)}/100` },
         ]} />
 
+        <GuardrailBanner flags={guardrails.flags} />
+
+        <div className="panel flex items-center gap-6 flex-wrap">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Deal Confidence Index</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl font-bold font-mono">{guardrails.dci.adjusted}%</span>
+              <span className="text-xs text-muted-foreground">/ ceiling {guardrails.dci.ceiling}%</span>
+            </div>
+            <p className="text-xs font-medium text-primary mt-1">{guardrails.dci.label}</p>
+          </div>
+          <div className="text-xs text-muted-foreground max-w-md leading-relaxed">
+            DCI is bounded by DSCR ({results.dscr.toFixed(2)}), CoC ({formatPercent(results.roi)}), and Monte-Carlo success rate ({guardrails.mcSuccess.toFixed(0)}%).
+            Sharpe estimate: {guardrails.sharpe.toFixed(2)} (σ ≈ {guardrails.stdev.toFixed(2)}%).
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab"
             formula="(Price × Down%) + Rehab + (Price × Closing%)" />
