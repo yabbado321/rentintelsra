@@ -3,6 +3,7 @@ import { MessageSquare, Loader2, Bot, Send, Copy, Check } from "lucide-react";
 import { usePortfolio } from "@/lib/portfolio";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { stripLeaseCitations } from "@/lib/guardrails";
 
 export default function CommsPage() {
   const { units, conversations, upsertConversation } = usePortfolio();
@@ -25,7 +26,9 @@ export default function CommsPage() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setReply(data);
+      // Guardrail: scrub any fabricated lease clause citations before display
+      const sanitized = { ...data, reply: stripLeaseCitations(data.reply ?? "") };
+      setReply(sanitized);
       const convId = `c-${unit.id}`;
       const existing = conversations.find((c) => c.id === convId);
       const now = new Date().toISOString();
@@ -35,7 +38,7 @@ export default function CommsPage() {
         messages: [
           ...(existing?.messages ?? []),
           { role: "tenant", text: tenantMsg, at: now },
-          { role: "ai", text: data.reply, at: now, meta: { sentiment: data.sentiment, churnRisk: data.churnRisk } },
+          { role: "ai", text: sanitized.reply, at: now, meta: { sentiment: data.sentiment, churnRisk: data.churnRisk } },
         ],
       });
     } catch (e) {

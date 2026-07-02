@@ -5,11 +5,17 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import PdfDownloadButton from "@/components/PdfDownloadButton";
 import AIMemoGenerator from "@/components/AIMemoGenerator";
+import GuardrailBanner from "@/components/GuardrailBanner";
 import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useSharedField, useActiveProperty } from "@/lib/propertyStore";
+import {
+  collectFlags, computeDCI, deriveSharpe, evaluateSharpe, evaluateLossProbability,
+  validateExpenses, describeScenarioReturn, evaluateNegativeCashflow, detectInconsistency,
+  orderFlags,
+} from "@/lib/guardrails";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
@@ -215,6 +221,46 @@ function DealAnalyzerTab() {
   }, [results, price, rent, downPct, interestRate, vacPct, mgmtPct, maintPct, capexPct,
       taxRatePct, insRatePct, hoa, rentGrowth, expGrowth, appreciation, years]);
 
+  // ===== Guardrails: institutional risk-flag layer =====
+  const guardrails = useMemo(() => {
+    const mcSuccess = 100 - monteCarlo.probNegativeCF;
+    const { sharpe, stdev } = deriveSharpe(monteCarlo.expectedIRR, monteCarlo.irrP10, monteCarlo.irrP90);
+    const dci = computeDCI({
+      dscr: results.dscr,
+      cashOnCash: results.roi,
+      mcSuccessRate: mcSuccess,
+      netCashFlow: results.annualCF / 12,
+    });
+
+    // Cross-tool inconsistency: currently mgmt fee is calculator-local only.
+    // When a portfolio-level default is added, wire it here.
+    const mgmtInconsistency = null;
+
+    // Scenario returns — approximate from Monte Carlo percentiles
+    const flags = collectFlags(
+      evaluateSharpe(sharpe, stdev),
+      evaluateLossProbability(monteCarlo.probNegativeCF, monteCarlo.iterations),
+      dci.flag,
+      validateExpenses({
+        mgmtPct, capexPct, vacancyPct: vacPct, maintPct,
+        monthlyRent: rent, yearBuilt: activeProperty.yearBuilt,
+      }),
+      describeScenarioReturn("Optimistic", monteCarlo.irrP90, results.ltv),
+      describeScenarioReturn("Base", monteCarlo.expectedIRR, results.ltv),
+      results.annualCF < 0 ? evaluateNegativeCashflow("Base", results.annualCF, years) : null,
+      // Pessimistic: apply -3% rent haircut, +5% expense haircut
+      (() => {
+        const stressedCF = (rent * 0.97 * 12) - ((rent * (vacPct + mgmtPct + maintPct + capexPct) / 100) * 12 * 1.05)
+          - ((results.valueBasis * (taxRatePct + insRatePct)) / 100)
+          - (results.mortgage + results.pmi) * 12 - hoa * 12;
+        return stressedCF < 0 ? evaluateNegativeCashflow("Pessimistic", stressedCF, years) : null;
+      })(),
+      mgmtInconsistency,
+    );
+    return { flags: orderFlags(flags), dci, sharpe, stdev, mcSuccess };
+  }, [results, monteCarlo, mgmtPct, vacPct, maintPct, capexPct, rent, hoa, taxRatePct,
+      insRatePct, years, activeProperty.yearBuilt]);
+
   const pdfData: UnderwritingReportData = useMemo(() => ({
     propertyName: propName,
     purchasePrice: price,
@@ -236,8 +282,12 @@ function DealAnalyzerTab() {
     netCashFlow: results.annualCF / 12,
     monteCarlo,
     aiMemo: activeProperty.aiMemo,
+    guardrails: guardrails.flags,
+    dci: { adjusted: guardrails.dci.adjusted, ceiling: guardrails.dci.ceiling, label: guardrails.dci.label },
   }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo]);
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo, guardrails]);
+
+
 
 
 
@@ -305,6 +355,23 @@ function DealAnalyzerTab() {
           { label: "Cash Flow", value: `${formatCurrency(results.annualCF)}/yr` },
           { label: "Score", value: `${results.score.toFixed(0)}/100` },
         ]} />
+
+        <GuardrailBanner flags={guardrails.flags} />
+
+        <div className="panel flex items-center gap-6 flex-wrap">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Deal Confidence Index</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl font-bold font-mono">{guardrails.dci.adjusted}%</span>
+              <span className="text-xs text-muted-foreground">/ ceiling {guardrails.dci.ceiling}%</span>
+            </div>
+            <p className="text-xs font-medium text-primary mt-1">{guardrails.dci.label}</p>
+          </div>
+          <div className="text-xs text-muted-foreground max-w-md leading-relaxed">
+            DCI is bounded by DSCR ({results.dscr.toFixed(2)}), CoC ({formatPercent(results.roi)}), and Monte-Carlo success rate ({guardrails.mcSuccess.toFixed(0)}%).
+            Sharpe estimate: {guardrails.sharpe.toFixed(2)} (σ ≈ {guardrails.stdev.toFixed(2)}%).
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab"

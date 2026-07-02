@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import type { GuardrailFlag } from "@/lib/guardrails";
 
 const COLORS = {
   navy: "#0f172a",
@@ -142,6 +143,9 @@ export interface UnderwritingReportData {
     valueAddRecommendations: string;
     updatedAt: string;
   };
+  // Optional guardrail flags & Deal Confidence Index
+  guardrails?: GuardrailFlag[];
+  dci?: { adjusted: number; ceiling: number; label: string };
 }
 
 function KpiBox({ label, value, positive, foot }: { label: string; value: string; positive?: boolean; foot?: string }) {
@@ -256,6 +260,43 @@ export default function UnderwritingReportPDF({ data }: { data: UnderwritingRepo
           <Text style={{ fontSize: 9, color: COLORS.slateLight, marginBottom: 18 }}>
             Monte Carlo simulation not executed in this session. Run the Risk Analyzer to attach probabilistic results.
           </Text>
+        )}
+
+        {/* Deal Confidence Index */}
+        {data.dci && (
+          <>
+            <Text style={styles.sectionTitle}>Deal Confidence Index</Text>
+            <View style={styles.table}>
+              <Row label="Adjusted Confidence Score" value={`${data.dci.adjusted}%`} tone="pos" />
+              <Row label="Policy Ceiling (by DSCR / CoC / MC Success)" value={`${data.dci.ceiling}%`} alt />
+              <Row label="Underwriting Verdict" value={data.dci.label} />
+            </View>
+          </>
+        )}
+
+        {/* Underwriting Disclosures */}
+        {data.guardrails && data.guardrails.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Underwriting Disclosures &amp; Guardrails</Text>
+            <View style={{ marginBottom: 18 }}>
+              {data.guardrails.map((g) => (
+                <View key={g.code} style={{
+                  borderLeftWidth: 3,
+                  borderLeftColor: g.severity === "critical" ? COLORS.red : g.severity === "warning" ? "#b45309" : COLORS.slate,
+                  backgroundColor: COLORS.surface,
+                  padding: 8,
+                  marginBottom: 6,
+                }}>
+                  <Text style={{ fontSize: 8, letterSpacing: 1, textTransform: "uppercase",
+                    color: g.severity === "critical" ? COLORS.red : g.severity === "warning" ? "#b45309" : COLORS.slate,
+                    fontFamily: "Helvetica-Bold" }}>
+                    {g.severity} · {g.title}
+                  </Text>
+                  <Text style={{ fontSize: 9, color: COLORS.slate, marginTop: 3, lineHeight: 1.5 }}>{g.message}</Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
 
         {/* Footer */}
