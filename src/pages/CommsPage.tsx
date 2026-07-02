@@ -38,7 +38,7 @@ export default function CommsPage() {
         messages: [
           ...(existing?.messages ?? []),
           { role: "tenant", text: tenantMsg, at: now },
-          { role: "ai", text: data.reply, at: now, meta: { sentiment: data.sentiment, churnRisk: data.churnRisk } },
+          { role: "ai", text: sanitized.reply, at: now, meta: { sentiment: data.sentiment, churnRisk: data.churnRisk } },
         ],
       });
     } catch (e) {
