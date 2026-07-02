@@ -26,7 +26,9 @@ export default function CommsPage() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setReply(data);
+      // Guardrail: scrub any fabricated lease clause citations before display
+      const sanitized = { ...data, reply: stripLeaseCitations(data.reply ?? "") };
+      setReply(sanitized);
       const convId = `c-${unit.id}`;
       const existing = conversations.find((c) => c.id === convId);
       const now = new Date().toISOString();
