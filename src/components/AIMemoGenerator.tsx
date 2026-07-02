@@ -56,14 +56,23 @@ function buildMemo(prop: ReturnType<typeof useActiveProperty>, r: UnderwritingRe
       `Cash-on-cash of ${pct(r.cashOnCash)} compares favorably to passive benchmarks; ` +
       `exit strategy assumes a hold-and-refinance pathway once rents mature, with a secondary disposition lane should cap rates compress below ${pct(Math.max(0, r.capRate - 0.75))}.`,
 
-    riskAppraisal: mc
-      ? `Across ${mc.iterations.toLocaleString()} Monte Carlo iterations the deal posts a ${pct(successRate)} probability of clearing the target IRR threshold, ` +
-        `with expected IRR of ${pct(mc.expectedIRR)} bounded by a P10 of ${pct(mc.irrP10)} and a P90 of ${pct(mc.irrP90)}. ` +
-        `${t.risk} the dominant downside drivers are short-term vacancy spikes and expense inflation outpacing rent growth. ` +
-        `Both are materially mitigated by maintaining a vacancy reserve of ${pct(prop.vacancyRate)} and a CapEx escrow of ${pct(prop.capex)} of gross rents. ` +
-        `Probability of negative year-one cash flow is contained at ${pct(mc.probNegativeCF)}, well inside our institutional tolerance band.`
-      : `Risk profile is constrained by a ${dscrLabel} DSCR of ${r.dscr.toFixed(2)} and a vacancy buffer of ${pct(prop.vacancyRate)}. ` +
-        `Run the Monte Carlo simulator on the Deal Analyzer to attach a 500-iteration probabilistic stress test to this memo.`,
+    riskAppraisal: (() => {
+      const criticalFlags = (r.guardrails ?? []).filter((f) => f.severity === "critical");
+      const flagNote = criticalFlags.length
+        ? ` Critical underwriting flags active: ${criticalFlags.map((f) => f.title).join("; ")}. See disclosures for detail.`
+        : "";
+      const dciNote = r.dci
+        ? ` The Deal Confidence Index resolves to ${r.dci.adjusted}% against a policy ceiling of ${r.dci.ceiling}% (${r.dci.label}).`
+        : "";
+      return mc
+        ? `Across ${mc.iterations.toLocaleString()} Monte Carlo iterations the deal posts a ${pct(successRate)} probability of clearing the target IRR threshold, ` +
+          `with expected IRR of ${pct(mc.expectedIRR)} bounded by a P10 of ${pct(mc.irrP10)} and a P90 of ${pct(mc.irrP90)}. ` +
+          `${t.risk} the dominant downside drivers are short-term vacancy spikes and expense inflation outpacing rent growth. ` +
+          `Both are materially mitigated by maintaining a vacancy reserve of ${pct(prop.vacancyRate)} and a CapEx escrow of ${pct(prop.capex)} of gross rents. ` +
+          `Probability of negative year-one cash flow is contained at ${pct(mc.probNegativeCF)}.${dciNote}${flagNote}`
+        : `Risk profile is constrained by a ${dscrLabel} DSCR of ${r.dscr.toFixed(2)} and a vacancy buffer of ${pct(prop.vacancyRate)}.${dciNote}${flagNote} ` +
+          `Run the Monte Carlo simulator on the Deal Analyzer to attach a 500-iteration probabilistic stress test to this memo.`;
+    })(),
 
     valueAddRecommendations:
       `${t.value} four concrete levers: (1) re-bench rent to the top quartile of local comps within 60 days of takeover, ` +
