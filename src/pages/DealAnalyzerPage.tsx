@@ -5,11 +5,17 @@ import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import PdfDownloadButton from "@/components/PdfDownloadButton";
 import AIMemoGenerator from "@/components/AIMemoGenerator";
+import GuardrailBanner from "@/components/GuardrailBanner";
 import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useSharedField, useActiveProperty } from "@/lib/propertyStore";
+import {
+  collectFlags, computeDCI, deriveSharpe, evaluateSharpe, evaluateLossProbability,
+  validateExpenses, describeScenarioReturn, evaluateNegativeCashflow, detectInconsistency,
+  orderFlags,
+} from "@/lib/guardrails";
 
 type Tab = "analyzer" | "breakeven" | "affordability";
 
