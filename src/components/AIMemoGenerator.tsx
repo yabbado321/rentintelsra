@@ -70,7 +70,8 @@ function buildMemo(prop: ReturnType<typeof useActiveProperty>, r: UnderwritingRe
       `(2) introduce light-rehab amenity upgrades (in-unit laundry, smart locks, LVP flooring) priced to deliver a 1.5-year payback, ` +
       `(3) renegotiate the property insurance binder against the appraised value of ${fmt(r.purchasePrice)} to compress expense ratio, ` +
       `(4) institute professional management at ${pct(8)} to reduce turn time and stabilize occupancy above 95%. ` +
-      `Executed cleanly, these moves can lift NOI by an estimated 8-12% within the first 18 months.`,
+      `Executed cleanly, these moves can deliver an estimated 8-12% Gross Rent Lift within the first 18 months. ` +
+      `NOI Lift will be lower after netting incremental operating expenses (management, maintenance, and turn costs).`,
 
     updatedAt: new Date().toISOString(),
   };
