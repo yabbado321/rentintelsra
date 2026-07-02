@@ -221,6 +221,55 @@ function DealAnalyzerTab() {
   }, [results, price, rent, downPct, interestRate, vacPct, mgmtPct, maintPct, capexPct,
       taxRatePct, insRatePct, hoa, rentGrowth, expGrowth, appreciation, years]);
 
+  // ===== Guardrails: institutional risk-flag layer =====
+  const guardrails = useMemo(() => {
+    const mcSuccess = 100 - monteCarlo.probNegativeCF;
+    const { sharpe, stdev } = deriveSharpe(monteCarlo.expectedIRR, monteCarlo.irrP10, monteCarlo.irrP90);
+    const dci = computeDCI({
+      dscr: results.dscr,
+      cashOnCash: results.roi,
+      mcSuccessRate: mcSuccess,
+      netCashFlow: results.annualCF / 12,
+    });
+
+    // Cross-tool inconsistency vs. shared property store defaults (mgmt is calculator-local)
+    const propMgmt = activeProperty.propertyManagement;
+    const mgmtInconsistency = propMgmt !== undefined && Math.abs(propMgmt - mgmtPct) > 0.5
+      ? detectInconsistency(
+          "Property Management Fee",
+          [
+            { tool: "Property Hub", value: propMgmt },
+            { tool: "Deal Analyzer", value: mgmtPct },
+          ],
+          mgmtPct,
+        )
+      : null;
+
+    // Scenario returns — approximate from Monte Carlo percentiles
+    const flags = collectFlags(
+      evaluateSharpe(sharpe, stdev),
+      evaluateLossProbability(monteCarlo.probNegativeCF, monteCarlo.iterations),
+      dci.flag,
+      validateExpenses({
+        mgmtPct, capexPct, vacancyPct: vacPct, maintPct,
+        monthlyRent: rent, yearBuilt: activeProperty.yearBuilt,
+      }),
+      describeScenarioReturn("Optimistic", monteCarlo.irrP90, results.ltv),
+      describeScenarioReturn("Base", monteCarlo.expectedIRR, results.ltv),
+      results.annualCF < 0 ? evaluateNegativeCashflow("Base", results.annualCF, years) : null,
+      // Pessimistic: apply -3% rent haircut, +5% expense haircut
+      (() => {
+        const stressedCF = (rent * 0.97 * 12) - ((rent * (vacPct + mgmtPct + maintPct + capexPct) / 100) * 12 * 1.05)
+          - ((results.valueBasis * (taxRatePct + insRatePct)) / 100)
+          - (results.mortgage + results.pmi) * 12 - hoa * 12;
+        return stressedCF < 0 ? evaluateNegativeCashflow("Pessimistic", stressedCF, years) : null;
+      })(),
+      mgmtInconsistency,
+    );
+    return { flags: orderFlags(flags), dci, sharpe, stdev, mcSuccess };
+  }, [results, monteCarlo, mgmtPct, vacPct, maintPct, capexPct, rent, hoa, taxRatePct,
+      insRatePct, years, activeProperty.propertyManagement, activeProperty.yearBuilt]);
+
   const pdfData: UnderwritingReportData = useMemo(() => ({
     propertyName: propName,
     purchasePrice: price,
@@ -242,8 +291,12 @@ function DealAnalyzerTab() {
     netCashFlow: results.annualCF / 12,
     monteCarlo,
     aiMemo: activeProperty.aiMemo,
+    guardrails: guardrails.flags,
+    dci: { adjusted: guardrails.dci.adjusted, ceiling: guardrails.dci.ceiling, label: guardrails.dci.label },
   }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo]);
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo, guardrails]);
+
+
 
 
 
