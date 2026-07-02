@@ -143,6 +143,9 @@ export interface UnderwritingReportData {
     valueAddRecommendations: string;
     updatedAt: string;
   };
+  // Optional guardrail flags & Deal Confidence Index
+  guardrails?: GuardrailFlag[];
+  dci?: { adjusted: number; ceiling: number; label: string };
 }
 
 function KpiBox({ label, value, positive, foot }: { label: string; value: string; positive?: boolean; foot?: string }) {
