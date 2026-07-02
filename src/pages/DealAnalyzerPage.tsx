@@ -259,7 +259,7 @@ function DealAnalyzerTab() {
     );
     return { flags: orderFlags(flags), dci, sharpe, stdev, mcSuccess };
   }, [results, monteCarlo, mgmtPct, vacPct, maintPct, capexPct, rent, hoa, taxRatePct,
-      insRatePct, years, activeProperty.propertyManagement, activeProperty.yearBuilt]);
+      insRatePct, years, activeProperty.yearBuilt]);
 
   const pdfData: UnderwritingReportData = useMemo(() => ({
     propertyName: propName,
