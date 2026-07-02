@@ -232,18 +232,9 @@ function DealAnalyzerTab() {
       netCashFlow: results.annualCF / 12,
     });
 
-    // Cross-tool inconsistency vs. shared property store defaults (mgmt is calculator-local)
-    const propMgmt = activeProperty.propertyManagement;
-    const mgmtInconsistency = propMgmt !== undefined && Math.abs(propMgmt - mgmtPct) > 0.5
-      ? detectInconsistency(
-          "Property Management Fee",
-          [
-            { tool: "Property Hub", value: propMgmt },
-            { tool: "Deal Analyzer", value: mgmtPct },
-          ],
-          mgmtPct,
-        )
-      : null;
+    // Cross-tool inconsistency: currently mgmt fee is calculator-local only.
+    // When a portfolio-level default is added, wire it here.
+    const mgmtInconsistency = null;
 
     // Scenario returns — approximate from Monte Carlo percentiles
     const flags = collectFlags(
