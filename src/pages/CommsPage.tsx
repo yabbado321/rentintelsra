@@ -3,6 +3,7 @@ import { MessageSquare, Loader2, Bot, Send, Copy, Check } from "lucide-react";
 import { usePortfolio } from "@/lib/portfolio";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { stripLeaseCitations } from "@/lib/guardrails";
 
 export default function CommsPage() {
   const { units, conversations, upsertConversation } = usePortfolio();
