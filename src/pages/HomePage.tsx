@@ -9,11 +9,11 @@ interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
-const stats = [
-  { value: "94%", label: "Avg. occupancy after 90 days", sub: "vs. 86% industry baseline" },
-  { value: "11.2%", label: "Lift in NOI per door", sub: "across pilot portfolios" },
-  { value: "18 hrs", label: "Saved per manager / week", sub: "automated workflows" },
-  { value: "<4 hrs", label: "Median maintenance triage", sub: "down from 36 hrs" },
+const capabilities = [
+  { value: "6+", label: "Workflows in one platform", sub: "pricing, maintenance, comms, analytics" },
+  { value: "120+", label: "Maintenance issue types", sub: "auto-classified by severity" },
+  { value: "30+", label: "Languages supported", sub: "for tenant communications" },
+  { value: "<1 min", label: "Time to explore any tool", sub: "no signup required" },
 ];
 
 const modules = [
@@ -25,25 +25,6 @@ const modules = [
   { icon: Calendar, title: "ZIP Market Lookup", desc: "Pull live rent estimates, demographics, schools, and rental demand for any US ZIP.", page: "zip", tag: "Research" },
 ];
 
-const testimonials = [
-  {
-    quote: "We onboarded 412 doors in two weeks. By month three our vacancy was cut in half and our maintenance backlog cleared itself.",
-    name: "Marcus Reilly",
-    role: "COO, Northbridge Residential (1,800 doors)",
-  },
-  {
-    quote: "The AI pricing alone paid for the platform 6x over in Q1. It catches rent leakage no human team would ever spot.",
-    name: "Priya Shah",
-    role: "VP Asset Management, Lattice Capital",
-  },
-  {
-    quote: "Tenants now get answers in seconds, not days. Our 5-star Google reviews tripled in 90 days.",
-    name: "Jordan Kim",
-    role: "Owner, Kim Property Group",
-  },
-];
-
-const trustLogos = ["Northbridge", "Lattice Capital", "Kim Property Group", "Cedar & Vine", "Atlas PM", "Highline REIT"];
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   return (
