@@ -34,9 +34,12 @@ export default function DealAnalyzerPage() {
 
   return (
     <div className="space-y-7">
-      <header>
-        <h1 className="text-4xl font-bold font-display">Deal Analyzer</h1>
-        <p className="text-muted-foreground mt-2">Full-stack underwriting — every cost an investor actually pays, every metric that matters.</p>
+      <header className="relative overflow-hidden rounded-2xl border border-primary/30 p-8 shadow-elegant">
+        <div className="absolute inset-0 gradient-primary opacity-[0.10] -z-10" />
+        <div className="absolute inset-0 bg-card/60 backdrop-blur-xl -z-10" />
+        <p className="text-[10px] uppercase tracking-[0.25em] text-primary/80 mb-2">Underwriting Suite</p>
+        <h1 className="text-4xl md:text-5xl font-bold font-display gradient-text">Deal Analyzer</h1>
+        <p className="text-muted-foreground mt-3 max-w-2xl">Full-stack underwriting — every cost an investor actually pays, every metric that matters.</p>
       </header>
 
       <div className="flex gap-2 flex-wrap">
