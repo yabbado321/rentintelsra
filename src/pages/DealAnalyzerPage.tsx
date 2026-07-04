@@ -184,6 +184,7 @@ function DealAnalyzerTab() {
       cashIn, totalCost, mortgage, pmi, loanAmt,
       noi, annualCF, roi, capRate, dscr, ltv, grm, onePctTest, fiftyPctRule, payback,
       equityMultiple5, score, expenseBreakdown, projections, valueBasis,
+      scoreBreakdown: { roi: roiScore, cap: capScore, dscr: dscrScore, onePct: onePctScore, cashFlow: cfScore },
     };
   }, [price, rehab, arv, closingPct, downPct, interestRate, loanTerm, rent, otherIncome,
       taxRatePct, insRatePct, hoa, vacPct, mgmtPct, maintPct, capexPct,
