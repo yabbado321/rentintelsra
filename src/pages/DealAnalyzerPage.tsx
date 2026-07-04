@@ -406,31 +406,17 @@ function DealAnalyzerTab() {
           )}
         </div>
 
-        <div className="panel">
-          <h3 className="text-lg font-semibold mb-5 font-display">Deal Score</h3>
-          <div className="flex items-center gap-8 flex-wrap">
-            <div className="relative w-36 h-36">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="hsl(240 30% 20%)" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.5" fill="none"
-                  stroke={results.score >= 70 ? "hsl(152 70% 55%)" : results.score >= 50 ? "hsl(38 95% 60%)" : "hsl(0 80% 62%)"}
-                  strokeWidth="3" strokeDasharray={`${results.score} 100`} strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold font-mono">{results.score.toFixed(0)}</span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">/ 100</span>
-              </div>
-            </div>
-            <div className="space-y-1 max-w-md">
-              <p className="font-semibold text-xl font-display">
-                {results.score >= 85 ? "🏆 Excellent deal" : results.score >= 70 ? "👍 Solid deal" : results.score >= 50 ? "⚠️ Marginal" : "🚨 High risk"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Weighted by ROI (40), Cap Rate (25), DSCR (20), 1% Rule (10), Cash Flow (5).
-              </p>
-            </div>
-          </div>
-        </div>
+        <DealScorePanel
+          score={results.score}
+          breakdown={results.scoreBreakdown}
+          inputs={{
+            roi: results.roi,
+            capRate: results.capRate,
+            dscr: results.dscr,
+            onePctTest: results.onePctTest,
+            annualCF: results.annualCF,
+          }}
+        />
 
         <div className="panel">
           <h3 className="text-lg font-semibold mb-4 font-display">Monthly expense breakdown</h3>
