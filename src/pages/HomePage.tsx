@@ -9,11 +9,11 @@ interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
-const stats = [
-  { value: "94%", label: "Avg. occupancy after 90 days", sub: "vs. 86% industry baseline" },
-  { value: "11.2%", label: "Lift in NOI per door", sub: "across pilot portfolios" },
-  { value: "18 hrs", label: "Saved per manager / week", sub: "automated workflows" },
-  { value: "<4 hrs", label: "Median maintenance triage", sub: "down from 36 hrs" },
+const capabilities = [
+  { value: "6+", label: "Workflows in one platform", sub: "pricing, maintenance, comms, analytics" },
+  { value: "120+", label: "Maintenance issue types", sub: "auto-classified by severity" },
+  { value: "30+", label: "Languages supported", sub: "for tenant communications" },
+  { value: "<1 min", label: "Time to explore any tool", sub: "no signup required" },
 ];
 
 const modules = [
@@ -25,25 +25,6 @@ const modules = [
   { icon: Calendar, title: "ZIP Market Lookup", desc: "Pull live rent estimates, demographics, schools, and rental demand for any US ZIP.", page: "zip", tag: "Research" },
 ];
 
-const testimonials = [
-  {
-    quote: "We onboarded 412 doors in two weeks. By month three our vacancy was cut in half and our maintenance backlog cleared itself.",
-    name: "Marcus Reilly",
-    role: "COO, Northbridge Residential (1,800 doors)",
-  },
-  {
-    quote: "The AI pricing alone paid for the platform 6x over in Q1. It catches rent leakage no human team would ever spot.",
-    name: "Priya Shah",
-    role: "VP Asset Management, Lattice Capital",
-  },
-  {
-    quote: "Tenants now get answers in seconds, not days. Our 5-star Google reviews tripled in 90 days.",
-    name: "Jordan Kim",
-    role: "Owner, Kim Property Group",
-  },
-];
-
-const trustLogos = ["Northbridge", "Lattice Capital", "Kim Property Group", "Cedar & Vine", "Atlas PM", "Highline REIT"];
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   return (
@@ -68,8 +49,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
             <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
               One platform to price every unit, triage every ticket, and answer every tenant —
-              built for operators running <b className="text-foreground/90">50 to 5,000+ doors</b>.
-              Replace 6 disconnected tools. Lift NOI in a quarter.
+              designed for operators of any portfolio size. Replace a stack of disconnected tools
+              with a single AI-native workspace.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
@@ -85,7 +66,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground pt-3">
-              {["SOC 2 Type II in progress", "No credit card required", "Live in <48 hours"].map((b) => (
+              {["No signup required", "Free to explore", "Every tool is live"].map((b) => (
                 <span key={b} className="inline-flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-primary" /> {b}
                 </span>
@@ -100,21 +81,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
-      {/* ─────────── TRUST BAR ─────────── */}
-      <section className="-mt-12">
-        <p className="text-center text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-5">
-          Trusted by operators managing 12,000+ doors
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 opacity-70">
-          {trustLogos.map((l) => (
-            <span key={l} className="font-display text-sm md:text-base font-semibold tracking-tight text-foreground/70">{l}</span>
-          ))}
-        </div>
-      </section>
-
-      {/* ─────────── STATS ─────────── */}
+      {/* ─────────── CAPABILITIES ─────────── */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
+        {capabilities.map((s) => (
           <div key={s.label} className="metric-card">
             <div className="text-3xl md:text-4xl font-bold font-display gradient-text mb-1">{s.value}</div>
             <div className="text-sm font-medium text-foreground">{s.label}</div>
@@ -122,6 +91,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           </div>
         ))}
       </section>
+
 
       {/* ─────────── MODULES ─────────── */}
       <section>
@@ -377,65 +347,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
           ); })}
         </div>
-        <p className="text-center text-xs text-muted-foreground mt-6">Open API + webhooks · SOC 2 Type II in progress · SSO/SAML on Enterprise</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">Open API + webhooks · SSO/SAML planned for Enterprise</p>
       </section>
 
-
-      <section className="panel relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-primary/20 blur-3xl" />
-        <div className="relative grid md:grid-cols-3 gap-8 items-center">
-          <div className="md:col-span-2">
-            <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Case Study · Northbridge Residential</p>
-            <h2 className="text-3xl md:text-4xl font-bold font-display mb-4 leading-tight">
-              From 86% to 96% occupancy in one quarter — without hiring.
-            </h2>
-            <p className="text-muted-foreground leading-relaxed mb-5">
-              Northbridge replaced three legacy tools with RentIntel across their 1,800-door Midwest portfolio. AI pricing
-              found $612k of annualized rent leakage in week one. Maintenance autopilot collapsed their backlog from 240
-              open tickets to under 30 in 21 days.
-            </p>
-            <div className="flex flex-wrap gap-x-8 gap-y-3">
-              <Stat label="Occupancy" value="86% → 96%" />
-              <Stat label="NOI lift" value="+$1.4M / yr" />
-              <Stat label="Backlog" value="−87%" />
-              <Stat label="Payback" value="34 days" />
-            </div>
-          </div>
-          <div className="hidden md:block">
-            <div className="rounded-2xl border border-border/60 bg-secondary/30 p-6">
-              <Star className="w-5 h-5 text-warning mb-3 fill-warning" />
-              <p className="text-sm italic text-foreground/90 leading-relaxed mb-4">
-                "It's the first piece of software our regional managers have actually thanked us for."
-              </p>
-              <div className="text-xs">
-                <div className="font-semibold">Marcus Reilly</div>
-                <div className="text-muted-foreground">COO, Northbridge Residential</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─────────── TESTIMONIALS ─────────── */}
-      <section>
-        <h2 className="text-3xl md:text-4xl font-bold font-display text-center mb-10">Operators who run on RentIntel.</h2>
-        <div className="grid md:grid-cols-3 gap-4">
-          {testimonials.map((t) => (
-            <blockquote key={t.name} className="metric-card flex flex-col">
-              <div className="flex gap-0.5 mb-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5 text-warning fill-warning" />
-                ))}
-              </div>
-              <p className="text-sm text-foreground/90 italic leading-relaxed flex-1">"{t.quote}"</p>
-              <footer className="mt-4 text-xs">
-                <div className="font-semibold">{t.name}</div>
-                <div className="text-muted-foreground">{t.role}</div>
-              </footer>
-            </blockquote>
-          ))}
-        </div>
-      </section>
 
       {/* ─────────── COMPARE ─────────── */}
       <section>
