@@ -49,8 +49,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
             <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
               One platform to price every unit, triage every ticket, and answer every tenant —
-              built for operators running <b className="text-foreground/90">50 to 5,000+ doors</b>.
-              Replace 6 disconnected tools. Lift NOI in a quarter.
+              designed for operators of any portfolio size. Replace a stack of disconnected tools
+              with a single AI-native workspace.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-1">
@@ -66,7 +66,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground pt-3">
-              {["SOC 2 Type II in progress", "No credit card required", "Live in <48 hours"].map((b) => (
+              {["No signup required", "Free to explore", "Every tool is live"].map((b) => (
                 <span key={b} className="inline-flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-primary" /> {b}
                 </span>
@@ -81,21 +81,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
-      {/* ─────────── TRUST BAR ─────────── */}
-      <section className="-mt-12">
-        <p className="text-center text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-5">
-          Trusted by operators managing 12,000+ doors
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 opacity-70">
-          {trustLogos.map((l) => (
-            <span key={l} className="font-display text-sm md:text-base font-semibold tracking-tight text-foreground/70">{l}</span>
-          ))}
-        </div>
-      </section>
-
-      {/* ─────────── STATS ─────────── */}
+      {/* ─────────── CAPABILITIES ─────────── */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
+        {capabilities.map((s) => (
           <div key={s.label} className="metric-card">
             <div className="text-3xl md:text-4xl font-bold font-display gradient-text mb-1">{s.value}</div>
             <div className="text-sm font-medium text-foreground">{s.label}</div>
@@ -103,6 +91,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           </div>
         ))}
       </section>
+
 
       {/* ─────────── MODULES ─────────── */}
       <section>
