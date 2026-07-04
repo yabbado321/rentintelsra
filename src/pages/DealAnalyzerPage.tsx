@@ -6,6 +6,7 @@ import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import PdfDownloadButton from "@/components/PdfDownloadButton";
 import AIMemoGenerator from "@/components/AIMemoGenerator";
 import GuardrailBanner from "@/components/GuardrailBanner";
+import DealScorePanel from "@/components/DealScorePanel";
 import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
