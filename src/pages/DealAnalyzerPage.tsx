@@ -6,6 +6,7 @@ import ModeToggle, { type Mode } from "@/components/ModeToggle";
 import PdfDownloadButton from "@/components/PdfDownloadButton";
 import AIMemoGenerator from "@/components/AIMemoGenerator";
 import GuardrailBanner from "@/components/GuardrailBanner";
+import DealScorePanel from "@/components/DealScorePanel";
 import type { UnderwritingReportData } from "@/components/UnderwritingReportPDF";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 import { Search, Calculator, Users, Info } from "lucide-react";
@@ -33,9 +34,12 @@ export default function DealAnalyzerPage() {
 
   return (
     <div className="space-y-7">
-      <header>
-        <h1 className="text-4xl font-bold font-display">Deal Analyzer</h1>
-        <p className="text-muted-foreground mt-2">Full-stack underwriting — every cost an investor actually pays, every metric that matters.</p>
+      <header className="relative overflow-hidden rounded-2xl border border-primary/30 p-8 shadow-elegant">
+        <div className="absolute inset-0 gradient-primary opacity-[0.10] -z-10" />
+        <div className="absolute inset-0 bg-card/60 backdrop-blur-xl -z-10" />
+        <p className="text-[10px] uppercase tracking-[0.25em] text-primary/80 mb-2">Underwriting Suite</p>
+        <h1 className="text-4xl md:text-5xl font-bold font-display gradient-text">Deal Analyzer</h1>
+        <p className="text-muted-foreground mt-3 max-w-2xl">Full-stack underwriting — every cost an investor actually pays, every metric that matters.</p>
       </header>
 
       <div className="flex gap-2 flex-wrap">
@@ -184,6 +188,7 @@ function DealAnalyzerTab() {
       cashIn, totalCost, mortgage, pmi, loanAmt,
       noi, annualCF, roi, capRate, dscr, ltv, grm, onePctTest, fiftyPctRule, payback,
       equityMultiple5, score, expenseBreakdown, projections, valueBasis,
+      scoreBreakdown: { roi: roiScore, cap: capScore, dscr: dscrScore, onePct: onePctScore, cashFlow: cfScore },
     };
   }, [price, rehab, arv, closingPct, downPct, interestRate, loanTerm, rent, otherIncome,
       taxRatePct, insRatePct, hoa, vacPct, mgmtPct, maintPct, capexPct,
@@ -404,31 +409,17 @@ function DealAnalyzerTab() {
           )}
         </div>
 
-        <div className="panel">
-          <h3 className="text-lg font-semibold mb-5 font-display">Deal Score</h3>
-          <div className="flex items-center gap-8 flex-wrap">
-            <div className="relative w-36 h-36">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="hsl(240 30% 20%)" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.5" fill="none"
-                  stroke={results.score >= 70 ? "hsl(152 70% 55%)" : results.score >= 50 ? "hsl(38 95% 60%)" : "hsl(0 80% 62%)"}
-                  strokeWidth="3" strokeDasharray={`${results.score} 100`} strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold font-mono">{results.score.toFixed(0)}</span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">/ 100</span>
-              </div>
-            </div>
-            <div className="space-y-1 max-w-md">
-              <p className="font-semibold text-xl font-display">
-                {results.score >= 85 ? "🏆 Excellent deal" : results.score >= 70 ? "👍 Solid deal" : results.score >= 50 ? "⚠️ Marginal" : "🚨 High risk"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Weighted by ROI (40), Cap Rate (25), DSCR (20), 1% Rule (10), Cash Flow (5).
-              </p>
-            </div>
-          </div>
-        </div>
+        <DealScorePanel
+          score={results.score}
+          breakdown={results.scoreBreakdown}
+          inputs={{
+            roi: results.roi,
+            capRate: results.capRate,
+            dscr: results.dscr,
+            onePctTest: results.onePctTest,
+            annualCF: results.annualCF,
+          }}
+        />
 
         <div className="panel">
           <h3 className="text-lg font-semibold mb-4 font-display">Monthly expense breakdown</h3>
