@@ -347,65 +347,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </div>
           ); })}
         </div>
-        <p className="text-center text-xs text-muted-foreground mt-6">Open API + webhooks · SOC 2 Type II in progress · SSO/SAML on Enterprise</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">Open API + webhooks · SSO/SAML planned for Enterprise</p>
       </section>
 
-
-      <section className="panel relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-primary/20 blur-3xl" />
-        <div className="relative grid md:grid-cols-3 gap-8 items-center">
-          <div className="md:col-span-2">
-            <p className="text-xs uppercase tracking-[0.25em] text-primary mb-3">Case Study · Northbridge Residential</p>
-            <h2 className="text-3xl md:text-4xl font-bold font-display mb-4 leading-tight">
-              From 86% to 96% occupancy in one quarter — without hiring.
-            </h2>
-            <p className="text-muted-foreground leading-relaxed mb-5">
-              Northbridge replaced three legacy tools with RentIntel across their 1,800-door Midwest portfolio. AI pricing
-              found $612k of annualized rent leakage in week one. Maintenance autopilot collapsed their backlog from 240
-              open tickets to under 30 in 21 days.
-            </p>
-            <div className="flex flex-wrap gap-x-8 gap-y-3">
-              <Stat label="Occupancy" value="86% → 96%" />
-              <Stat label="NOI lift" value="+$1.4M / yr" />
-              <Stat label="Backlog" value="−87%" />
-              <Stat label="Payback" value="34 days" />
-            </div>
-          </div>
-          <div className="hidden md:block">
-            <div className="rounded-2xl border border-border/60 bg-secondary/30 p-6">
-              <Star className="w-5 h-5 text-warning mb-3 fill-warning" />
-              <p className="text-sm italic text-foreground/90 leading-relaxed mb-4">
-                "It's the first piece of software our regional managers have actually thanked us for."
-              </p>
-              <div className="text-xs">
-                <div className="font-semibold">Marcus Reilly</div>
-                <div className="text-muted-foreground">COO, Northbridge Residential</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─────────── TESTIMONIALS ─────────── */}
-      <section>
-        <h2 className="text-3xl md:text-4xl font-bold font-display text-center mb-10">Operators who run on RentIntel.</h2>
-        <div className="grid md:grid-cols-3 gap-4">
-          {testimonials.map((t) => (
-            <blockquote key={t.name} className="metric-card flex flex-col">
-              <div className="flex gap-0.5 mb-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5 text-warning fill-warning" />
-                ))}
-              </div>
-              <p className="text-sm text-foreground/90 italic leading-relaxed flex-1">"{t.quote}"</p>
-              <footer className="mt-4 text-xs">
-                <div className="font-semibold">{t.name}</div>
-                <div className="text-muted-foreground">{t.role}</div>
-              </footer>
-            </blockquote>
-          ))}
-        </div>
-      </section>
 
       {/* ─────────── COMPARE ─────────── */}
       <section>
