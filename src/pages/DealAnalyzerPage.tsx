@@ -268,6 +268,7 @@ function DealAnalyzerTab() {
 
   const pdfData: UnderwritingReportData = useMemo(() => ({
     propertyName: propName,
+    address: activeProperty.address || propName,
     purchasePrice: price,
     cashOnCash: results.roi,
     capRate: results.capRate,
@@ -289,8 +290,27 @@ function DealAnalyzerTab() {
     aiMemo: activeProperty.aiMemo,
     guardrails: guardrails.flags,
     dci: { adjusted: guardrails.dci.adjusted, ceiling: guardrails.dci.ceiling, label: guardrails.dci.label },
-  }), [propName, price, rehab, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, results, monteCarlo, activeProperty.aiMemo, guardrails]);
+    // Extended underwriting inputs for the 10-page institutional PDF
+    arv: arv > 0 ? arv : price,
+    interestRate,
+    loanTerm,
+    taxRatePct,
+    insRatePct,
+    hoaMonthly: hoa,
+    mgmtPct,
+    maintPct,
+    capexPct,
+    vacancyPct: vacPct,
+    rentGrowth,
+    expGrowth,
+    appreciation,
+    holdYears: years,
+    projections: results.projections,
+    expenseBreakdown: results.expenseBreakdown,
+  }), [propName, price, rehab, arv, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
+       maintPct, capexPct, taxRatePct, insRatePct, hoa, interestRate, loanTerm,
+       rentGrowth, expGrowth, appreciation, years, results, monteCarlo,
+       activeProperty.aiMemo, activeProperty.address, guardrails]);
 
 
 
