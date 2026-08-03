@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency, formatPercent, findBreakeven, runMonteCarlo } from "@/lib/calculations";
+import { runSimulation } from "@/lib/monteCarlo";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
