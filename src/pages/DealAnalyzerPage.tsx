@@ -14,7 +14,7 @@ import { Search, Calculator, Users, Info } from "lucide-react";
 import { useSessionState } from "@/hooks/useSessionState";
 import { useSharedField, useActiveProperty } from "@/lib/propertyStore";
 import {
-  collectFlags, computeDCI, deriveSharpe, evaluateSharpe, evaluateLossProbability,
+  collectFlags, computeDCI, evaluateSharpe, evaluateLossProbability,
   validateExpenses, describeScenarioReturn, evaluateNegativeCashflow, detectInconsistency,
   orderFlags,
 } from "@/lib/guardrails";
