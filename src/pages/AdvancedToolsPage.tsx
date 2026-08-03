@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { runMonteCarlo, formatPercent, formatCurrency, calculateMortgage } from "@/lib/calculations";
+import { formatPercent, formatCurrency, calculateMortgage } from "@/lib/calculations";
+import { runSimulation, PROFILES, SIMULATION_COUNTS, RISK_FREE_RATE, type RiskProfile, type MonteCarloResult } from "@/lib/monteCarlo";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
