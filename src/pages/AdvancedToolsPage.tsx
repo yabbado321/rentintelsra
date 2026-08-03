@@ -44,88 +44,72 @@ function MonteCarloTab() {
   const [price, setPrice] = useSharedField("purchasePrice");
   const [rent, setRent] = useSharedField("grossRent");
   const [downPct, setDownPct] = useSharedField("downPayment");
-  const [expenses, setExpenses] = useState(800);
+  const [otherOpEx, setOtherOpEx] = useState(300);
+  const [annualTaxes, setAnnualTaxes] = useState(3600);
+  const [annualInsurance, setAnnualInsurance] = useState(1500);
   const [rate, setRate] = useState(6.5);
+  const [loanTerm, setLoanTerm] = useState(30);
+  const [closingPct, setClosingPct] = useState(3);
+  const [rehab, setRehab] = useState(0);
   const [years, setYears] = useState(5);
-  const [preset, setPreset] = useState<"conservative" | "balanced" | "aggressive" | "custom">("balanced");
-  // custom ranges
-  const [rentMin, setRentMin] = useState(1);
-  const [rentMax, setRentMax] = useState(3);
-  const [apprMin, setApprMin] = useState(2);
-  const [apprMax, setApprMax] = useState(3);
-  const [expMin, setExpMin] = useState(1);
-  const [expMax, setExpMax] = useState(4);
-  const [sims, setSims] = useState(1000);
+  const [profile, setProfile] = useState<RiskProfile>("balanced");
+  const [iterations, setIterations] = useState<number>(5000);
+  const [locked, setLocked] = useState(true);
 
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<MonteCarloResult | null>(null);
   const [running, setRunning] = useState(false);
-
-  const presets = {
-    conservative: { sims: 1000, rent: [1, 2] as [number, number], appr: [1, 2] as [number, number], exp: [1, 3] as [number, number] },
-    balanced: { sims: 1000, rent: [1, 3] as [number, number], appr: [2, 3] as [number, number], exp: [1, 4] as [number, number] },
-    aggressive: { sims: 2000, rent: [2, 5] as [number, number], appr: [3, 5] as [number, number], exp: [0, 2] as [number, number] },
-    custom: { sims, rent: [rentMin, rentMax] as [number, number], appr: [apprMin, apprMax] as [number, number], exp: [expMin, expMax] as [number, number] },
-  };
 
   const run = () => {
     setRunning(true);
+    // Defer a frame so the spinner paints before the (synchronous) simulation.
     setTimeout(() => {
-      const p = presets[preset];
-      const { roiResults } = runMonteCarlo(
-        price, rent, expenses, downPct, p.sims, p.rent, p.exp, p.appr, years, rate
-      );
-
-      const sorted = [...roiResults].sort((a, b) => a - b);
-      const avgRoi = roiResults.reduce((a, b) => a + b, 0) / roiResults.length;
-      const medianRoi = sorted[Math.floor(sorted.length / 2)];
-      const p5 = sorted[Math.floor(sorted.length * 0.05)];
-      const p25 = sorted[Math.floor(sorted.length * 0.25)];
-      const p75 = sorted[Math.floor(sorted.length * 0.75)];
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      const probPositive = roiResults.filter(r => r > 0).length / roiResults.length * 100;
-      const probAbove10 = roiResults.filter(r => r > 10).length / roiResults.length * 100;
-      const probAbove15 = roiResults.filter(r => r > 15).length / roiResults.length * 100;
-      const probLoss = roiResults.filter(r => r < 0).length / roiResults.length * 100;
-
-      const std = Math.sqrt(roiResults.reduce((sum, r) => sum + Math.pow(r - avgRoi, 2), 0) / roiResults.length);
-      const sharpe = std > 0 ? (avgRoi - 4) / std : 0; // risk-free ~4%
-      const confidence = Math.max(0, Math.min(100, 100 - std * 1.5));
-
-      const minR = Math.floor(Math.min(...roiResults));
-      const maxR = Math.ceil(Math.max(...roiResults));
-      const binCount = 25;
-      const binSize = (maxR - minR) / binCount || 1;
-      const bins = Array.from({ length: binCount }, (_, i) => {
-        const low = minR + i * binSize;
-        const high = low + binSize;
-        const count = roiResults.filter(r => r >= low && r < high).length;
-        return { range: `${low.toFixed(0)}%`, count, mid: (low + high) / 2 };
+      const sim = runSimulation({
+        purchasePrice: price,
+        monthlyRent: rent,
+        monthlyOtherOpEx: otherOpEx,
+        annualTaxes,
+        annualInsurance,
+        downPaymentPct: downPct,
+        interestRate: rate,
+        loanTermYears: loanTerm,
+        holdYears: years,
+        closingCostPct: closingPct,
+        rehabBudget: rehab,
+        iterations,
+        profile,
+        seed: locked ? 20260214 : undefined,
       });
-
-      setResults({ avgRoi, medianRoi, p5, p25, p75, p95, probPositive, probAbove10, probAbove15, probLoss, confidence, std, sharpe, bins, sims: p.sims });
+      setResults(sim);
       setRunning(false);
-    }, 60);
+    }, 30);
   };
+
+  const a = PROFILES[profile];
 
   return (
     <div className="space-y-6">
-      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode runs preset risk profiles. Advanced exposes custom growth ranges and simulation count." />
+      <ModeToggle mode={mode} onChange={setMode} hint="Simple mode runs a calibrated risk profile. Advanced exposes expense detail, hold structure, iteration count and seed locking." />
       <div className="panel space-y-5">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em] mb-2">Risk Profile</p>
           <div className="flex gap-2 flex-wrap">
-            {(["conservative", "balanced", "aggressive", ...(mode === "advanced" ? ["custom" as const] : [])] as const).map((p) => (
-              <button key={p} onClick={() => setPreset(p)} className={`tab-pill capitalize ${preset === p ? "tab-pill-active" : "tab-pill-inactive"}`}>
-                {p === "conservative" ? "📉" : p === "balanced" ? "📊" : p === "aggressive" ? "🚀" : "⚙️"} {p}
+            {(["conservative", "balanced", "aggressive"] as const).map((p) => (
+              <button key={p} onClick={() => setProfile(p)} className={`tab-pill capitalize ${profile === p ? "tab-pill-active" : "tab-pill-inactive"}`}>
+                {p === "conservative" ? "📉" : p === "balanced" ? "📊" : "🚀"} {p}
               </button>
             ))}
           </div>
+          <p className="text-[11px] text-muted-foreground mt-2 font-mono">
+            Appreciation {a.apprMean}% ±{a.apprSd} · Rent growth {a.rentGrowthMean}% ±{a.rentGrowthSd} ·
+            Vacancy {a.vacancyMin}–{a.vacancyMax}% (mode {a.vacancyMode}%) · Maint. median {a.maintMedianPct}% of rent ·
+            CapEx event {(a.capexProb * 100).toFixed(0)}%/yr
+          </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Num id="mc-price" label="Purchase Price ($)" value={price} onChange={setPrice} step={1000} />
           <Num id="mc-rent" label="Monthly Rent ($)" value={rent} onChange={setRent} step={25} />
-          <Num id="mc-exp" label="Monthly Expenses ($)" value={expenses} onChange={setExpenses} step={50} />
+          <Num id="mc-exp" label="Other Monthly OpEx ($)" value={otherOpEx} onChange={setOtherOpEx} step={25} />
           <Num id="mc-rate" label="Interest Rate (%)" value={rate} onChange={setRate} step={0.1} />
           <div>
             <label htmlFor="mc-dp" className="text-xs font-medium text-muted-foreground block mb-1.5">Down Payment: <span className="text-primary font-mono">{downPct}%</span></label>
@@ -137,72 +121,93 @@ function MonteCarloTab() {
           </div>
         </div>
 
-        {mode === "advanced" && preset === "custom" && (
-          <div className="space-y-3 rounded-xl border border-border/50 bg-secondary/20 p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Custom growth ranges (%/yr)</p>
+        {mode === "advanced" && (
+          <div className="space-y-4 rounded-xl border border-border/50 bg-secondary/20 p-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.18em]">Capital & carrying detail</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Num id="mc-rmin" label="Rent growth min" value={rentMin} onChange={setRentMin} step={0.5} />
-              <Num id="mc-rmax" label="Rent growth max" value={rentMax} onChange={setRentMax} step={0.5} />
-              <Num id="mc-amin" label="Appreciation min" value={apprMin} onChange={setApprMin} step={0.5} />
-              <Num id="mc-amax" label="Appreciation max" value={apprMax} onChange={setApprMax} step={0.5} />
-              <Num id="mc-emin" label="Expense growth min" value={expMin} onChange={setExpMin} step={0.5} />
-              <Num id="mc-emax" label="Expense growth max" value={expMax} onChange={setExpMax} step={0.5} />
-              <Num id="mc-sims" label="Simulations" value={sims} onChange={setSims} step={500} />
+              <Num id="mc-tax" label="Annual Taxes ($)" value={annualTaxes} onChange={setAnnualTaxes} step={100} />
+              <Num id="mc-ins" label="Annual Insurance ($)" value={annualInsurance} onChange={setAnnualInsurance} step={50} />
+              <Num id="mc-close" label="Closing Costs (%)" value={closingPct} onChange={setClosingPct} step={0.1} />
+              <Num id="mc-rehab" label="Rehab Budget ($)" value={rehab} onChange={setRehab} step={500} />
+              <Num id="mc-term" label="Loan Term (yrs)" value={loanTerm} onChange={setLoanTerm} step={5} />
+              <div>
+                <label htmlFor="mc-iter" className="text-xs font-medium text-muted-foreground block mb-1.5">Iterations</label>
+                <select id="mc-iter" value={iterations} onChange={(e) => setIterations(Number(e.target.value))}
+                  className="w-full bg-secondary/60 border border-border/60 rounded-lg px-3 py-2 text-sm font-mono">
+                  {SIMULATION_COUNTS.map((c) => <option key={c} value={c}>{c.toLocaleString()}</option>)}
+                </select>
+              </div>
+              <label className="flex items-end gap-2 text-xs text-muted-foreground pb-2">
+                <input type="checkbox" checked={locked} onChange={(e) => setLocked(e.target.checked)} className="accent-primary" />
+                Lock seed (reproducible)
+              </label>
             </div>
           </div>
         )}
 
         <button onClick={run} disabled={running} className="btn-primary w-full">
-          {running ? <><Loader2 className="w-4 h-4 animate-spin" /> Running {presets[preset].sims} simulations...</> : <><Play className="w-4 h-4" /> Run Simulation</>}
+          {running ? <><Loader2 className="w-4 h-4 animate-spin" /> Running {iterations.toLocaleString()} paths...</> : <><Play className="w-4 h-4" /> Run Simulation</>}
         </button>
       </div>
 
       {results && (
         <div className="space-y-6 animate-fade-in">
-          <SummaryBar title={`${results.sims} Simulations · ${years}-yr hold`} items={[
-            { label: "Mean ROI", value: formatPercent(results.avgRoi) },
-            { label: "Median", value: formatPercent(results.medianRoi) },
-            { label: "Loss Probability", value: `${results.probLoss.toFixed(0)}%` },
+          <SummaryBar title={`${results.iterations.toLocaleString()} paths · ${years}-yr hold · ${results.profile}`} items={[
+            { label: "Mean ROI", value: formatPercent(results.roi.mean) },
+            { label: "Median ROI", value: formatPercent(results.roi.median) },
+            { label: "Loss Probability", value: `${results.probLoss.toFixed(1)}%` },
             { label: "Sharpe", value: results.sharpe.toFixed(2) },
           ]} />
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard label="5th %ile" value={formatPercent(results.p5)} variant={results.p5 > 0 ? "success" : "danger"} subtitle="Worst-case" />
-            <MetricCard label="25th %ile" value={formatPercent(results.p25)} />
-            <MetricCard label="75th %ile" value={formatPercent(results.p75)} />
-            <MetricCard label="95th %ile" value={formatPercent(results.p95)} subtitle="Best-case" />
-            <MetricCard label="P(ROI > 0)" value={`${results.probPositive.toFixed(0)}%`} variant="success" />
-            <MetricCard label="P(ROI > 10%)" value={`${results.probAbove10.toFixed(0)}%`} />
-            <MetricCard label="P(ROI > 15%)" value={`${results.probAbove15.toFixed(0)}%`} />
-            <MetricCard label="Std. Deviation" value={`±${results.std.toFixed(1)}%`} subtitle="Volatility" />
+            <MetricCard label="5th %ile ROI" value={formatPercent(results.roi.p5)} variant={results.roi.p5 > 0 ? "success" : "danger"} subtitle="Downside case" />
+            <MetricCard label="25th %ile" value={formatPercent(results.roi.p25)} />
+            <MetricCard label="75th %ile" value={formatPercent(results.roi.p75)} />
+            <MetricCard label="95th %ile" value={formatPercent(results.roi.p95)} subtitle="Upside case" />
+            <MetricCard label="Median IRR" value={formatPercent(results.irr.median)} subtitle="Equity cash flows" />
+            <MetricCard label="VaR (5%)" value={formatPercent(results.var5)} variant={results.var5 < 0 ? "danger" : "default"} subtitle="Worst 1-in-20" />
+            <MetricCard label="Expected Shortfall" value={formatPercent(results.cvar5)} variant={results.cvar5 < 0 ? "danger" : "default"} subtitle="Mean of worst 5%" />
+            <MetricCard label="Std. Deviation" value={`±${results.roi.stdev.toFixed(1)}%`} subtitle="Volatility of ROI" />
+            <MetricCard label="Sortino" value={results.sortino.toFixed(2)} subtitle="Downside-adjusted" />
+            <MetricCard label="Downside Dev." value={`${results.downsideDeviation.toFixed(1)}%`} subtitle={`vs ${RISK_FREE_RATE}% hurdle`} />
+            <MetricCard label="P(ROI > 10%)" value={`${results.probRoiAbove10.toFixed(0)}%`} />
+            <MetricCard label="Negative CF year" value={`${results.probNegativeCashFlowYear.toFixed(0)}%`}
+              variant={results.probNegativeCashFlowYear > 25 ? "danger" : results.probNegativeCashFlowYear > 10 ? "warning" : "success"}
+              subtitle="Any year in hold" />
           </div>
 
           <div className="panel">
-            <h3 className="text-lg font-semibold mb-3 font-display">Deal Confidence Index</h3>
-            <div className="flex items-center gap-5 flex-wrap">
-              <span className={`text-4xl font-bold font-mono ${results.confidence >= 85 ? "text-success" : results.confidence >= 70 ? "text-warning" : "text-destructive"}`}>
-                {results.confidence.toFixed(0)}%
+            <h3 className="text-lg font-semibold mb-1 font-display">Deal Confidence Index</h3>
+            <p className="text-xs text-muted-foreground mb-4">Weighted blend of loss probability, cash-flow stability, downside protection, median return and dispersion.</p>
+            <div className="flex items-center gap-5 flex-wrap mb-4">
+              <span className={`text-4xl font-bold font-mono ${results.confidence.score >= 80 ? "text-success" : results.confidence.score >= 60 ? "text-warning" : "text-destructive"}`}>
+                {results.confidence.score}
               </span>
-              <span className="text-sm text-muted-foreground max-w-md">
-                {results.confidence >= 85
-                  ? "🟢 Stable — predictable returns across scenarios."
-                  : results.confidence >= 70
-                    ? "🟡 Moderate — some volatility but manageable."
-                    : "🔴 Volatile — wide spread, downside risk is real."}
-              </span>
+              <span className="text-sm text-muted-foreground max-w-md">{results.confidence.label}</span>
+            </div>
+            <div className="space-y-2">
+              {results.confidence.components.map((c) => (
+                <div key={c.key} className="flex items-center gap-3 text-xs">
+                  <span className="w-56 text-muted-foreground">{c.label}</span>
+                  <div className="flex-1 h-2 rounded-full bg-secondary/60 overflow-hidden">
+                    <div className="h-full bg-primary/80" style={{ width: `${(c.points / c.weight) * 100}%` }} />
+                  </div>
+                  <span className="font-mono w-16 text-right">{c.points}/{c.weight}</span>
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="panel">
-            <h3 className="text-lg font-semibold mb-4 font-display">ROI distribution</h3>
+            <h3 className="text-lg font-semibold mb-4 font-display">Annualised ROI distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={results.bins}>
+              <BarChart data={results.histogram.bins}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 30% 22%)" />
-                <XAxis dataKey="range" stroke="hsl(240 18% 72%)" fontSize={10} interval={2} />
+                <XAxis dataKey="label" stroke="hsl(240 18% 72%)" fontSize={10} interval={2} />
                 <YAxis stroke="hsl(240 18% 72%)" fontSize={12} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any, _n: any, p: any) => [`${v} paths (${p.payload.pct.toFixed(1)}%)`, "Frequency"]} />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {results.bins.map((b: any, i: number) => (
+                  {results.histogram.bins.map((b, i) => (
                     <Cell key={i} fill={b.mid >= 0 ? "hsl(244 75% 62%)" : "hsl(0 80% 62%)"} />
                   ))}
                 </Bar>
@@ -212,12 +217,21 @@ function MonteCarloTab() {
 
           <div className="panel text-xs text-muted-foreground flex items-start gap-2">
             <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-            <span>Each simulation samples rent growth, expense growth, and appreciation uniformly within your selected ranges, then amortizes the loan over the hold period and exits at year {years}. Sharpe ratio uses a 4% risk-free rate.</span>
+            <span>
+              Each path simulates the hold year by year. Appreciation and rent growth are drawn from normal
+              distributions correlated through a shared macro factor; vacancy is triangular (recessions push it
+              higher); maintenance is log-normal; major CapEx events are Bernoulli-triggered and log-normal in
+              severity; taxes, insurance and other operating costs escalate independently. Exit applies a
+              stochastic selling cost and months of listing carry. ROI is annualised total return on cash
+              invested (down payment + closing + rehab), including principal paydown. Sharpe and Sortino use a
+              {" "}{RISK_FREE_RATE}% risk-free rate. Results are estimates, not guarantees.
+            </span>
           </div>
         </div>
       )}
     </div>
   );
+
 }
 
 function ScenarioTab() {
