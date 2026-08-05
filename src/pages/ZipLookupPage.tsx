@@ -605,11 +605,19 @@ export default function ZipLookupPage({ onNavigate }: { onNavigate?: (page: Page
 }
 
 function ConfidenceBadge({ confidence }: { confidence: CanonicalProperty["confidence"] }) {
-  const tone = confidence.score >= 80 ? "success" : confidence.score >= 55 ? "warning" : "destructive";
+  const tone =
+    confidence.score >= 80
+      ? { wrap: "border-success/40 bg-success/10", text: "text-success" }
+      : confidence.score >= 55
+      ? { wrap: "border-warning/40 bg-warning/10", text: "text-warning" }
+      : { wrap: "border-destructive/40 bg-destructive/10", text: "text-destructive" };
   return (
-    <div className={`rounded-xl border px-4 py-3 text-center border-${tone}/40 bg-${tone}/10`}>
+    <div className={`rounded-xl border px-4 py-3 text-center ${tone.wrap}`}>
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Confidence Score</p>
-      <p className={`text-3xl font-mono font-bold text-${tone}`}>{confidence.score}<span className="text-sm text-muted-foreground"> / 100</span></p>
+      <p className={`text-3xl font-mono font-bold ${tone.text}`}>
+        {confidence.score}<span className="text-sm text-muted-foreground"> / 100</span>
+      </p>
     </div>
   );
 }
+
