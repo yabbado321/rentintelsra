@@ -131,18 +131,24 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "rentToIncomeRatioPct": number,
     "investorScore": number      // 1-10
   },
+  "marketMetrics": {
+    "activeInventoryUnits": number,   // active for-sale/for-rent listings in the ZIP; 0 if unknown
+    "buildingPermits12mo": number     // residential permits issued in the last 12 months; 0 if unknown
+  },
   "rentBreakdown": {
     // Transparent step-by-step derivation of subjectEstimate. Every number must reconcile:
     // baseRent + sum(adjustments[].dollarImpact) ≈ finalEstimate (±$25).
-    "baseRent": number,           // Starting point: HUD SAFMR or ZIP median for the unit size
+    "baseRent": number,           // Starting point: HUD SAFMR or ZIP median for the SUBJECT bedroom count
     "baseRentSource": string,     // e.g. "HUD 2024 SAFMR — 2BR Los Angeles-Long Beach-Anaheim MSA"
     "adjustments": [
       {
-        "factor": string,         // "Bedroom count", "Square footage premium", "Walk Score 92", "School rating 9/10", "In-unit laundry", "Sub-market premium (Beverly Hills)"
-        "dollarImpact": number,   // signed $ adjustment vs. base
-        "rationale": string       // 1-sentence cite-able reasoning
+        "factor": string,         // "Square footage vs. ZIP median", "Walk Score 92", "School rating 9/10", "In-unit laundry"
+        "dollarImpact": number,   // signed $ adjustment vs. base — MUST be 0 when verified=false
+        "rationale": string,      // 1-sentence cite-able reasoning referencing the subject's real specs
+        "verified": boolean       // true ONLY if the underlying fact is confirmed by a named source
       }
     ],
+
     "finalEstimate": number,      // MUST equal rentEstimates.subjectEstimate
     "methodology": string,        // 2-3 sentences describing weighting (HUD SAFMR + comp regression + amenity hedonic model)
     "confidenceDrivers": string[] // why High/Medium/Low confidence (e.g. "5 comps within 0.5mi", "no recent listings — using ZIP median")
