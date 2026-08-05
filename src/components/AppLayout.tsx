@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Home, MapPin, BarChart3, TrendingUp, GitCompare, LineChart, BookOpen, Menu, X, Mail, LayoutDashboard, Wrench, MessageSquare } from "lucide-react";
 import SettingsMenu from "./SettingsMenu";
 
-type Page = "home" | "dashboard" | "pricing" | "maintenance" | "comms" | "zip" | "deal" | "roi" | "comparison" | "advanced" | "help";
+export type Page = "home" | "dashboard" | "pricing" | "maintenance" | "comms" | "zip" | "deal" | "roi" | "comparison" | "advanced" | "help";
 
 const NAV_GROUPS: { label?: string; items: { id: Page; label: string; icon: React.ReactNode }[] }[] = [
   { items: [{ id: "home", label: "Home", icon: <Home size={18} /> }] },
@@ -107,5 +107,3 @@ export default function AppLayout({ activePage, onPageChange, children }: AppLay
     </div>
   );
 }
-
-export type { Page };

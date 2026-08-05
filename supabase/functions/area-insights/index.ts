@@ -78,7 +78,23 @@ Prioritize 100% certain results. For EVERY numeric or factual value you output:
 ## 8. WHEN DATA IS UNAVAILABLE:
   State "Insufficient data — manual verification recommended." Do NOT fabricate plausible-sounding numbers. Do NOT use city averages as ZIP/property substitutes.
 
+## 9. FEATURE VERIFICATION (zero tolerance for hallucinated amenities):
+  For garage, basement, central air, in-unit laundry, fenced yard, updated kitchen, updated bathrooms, hardwood floors, pool, dishwasher —
+  return EXACTLY one of "Yes" | "No" | "Unknown" in property.features. Use "Yes" ONLY when the listing text, listing photos description,
+  or public records explicitly confirm it. If the listing does not mention it, the answer is "Unknown" — never "No" and never "Yes".
+  NEVER assume renovations, upgrades, or amenities from the year built, price, or neighborhood.
+
+## 10. ADJUSTMENT DISCIPLINE:
+  Each rentBreakdown.adjustments entry MUST carry "verified": true|false. Set true only when the underlying fact is confirmed
+  by a named source. If "verified" is false, "dollarImpact" MUST be 0. Never apply a dollar credit for an unverified feature.
+  Adjustments must reference the SUBJECT property's actual beds/baths/sqft — never a different unit size.
+
+## 11. NO NARRATIVE INVENTION:
+  Do not write speculative market trends, neighborhood characterizations, or investment advice that is not backed by a number
+  you are also returning in the JSON. Prefer quantitative metrics over prose.
+
 Cross-reference at least 3 independent sources before stating any number. NEVER invent comp addresses. If you cannot verify, mark confidence "Low" and widen ranges.
+
 
 For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScript type:
 
@@ -115,18 +131,24 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "rentToIncomeRatioPct": number,
     "investorScore": number      // 1-10
   },
+  "marketMetrics": {
+    "activeInventoryUnits": number,   // active for-sale/for-rent listings in the ZIP; 0 if unknown
+    "buildingPermits12mo": number     // residential permits issued in the last 12 months; 0 if unknown
+  },
   "rentBreakdown": {
     // Transparent step-by-step derivation of subjectEstimate. Every number must reconcile:
     // baseRent + sum(adjustments[].dollarImpact) ≈ finalEstimate (±$25).
-    "baseRent": number,           // Starting point: HUD SAFMR or ZIP median for the unit size
+    "baseRent": number,           // Starting point: HUD SAFMR or ZIP median for the SUBJECT bedroom count
     "baseRentSource": string,     // e.g. "HUD 2024 SAFMR — 2BR Los Angeles-Long Beach-Anaheim MSA"
     "adjustments": [
       {
-        "factor": string,         // "Bedroom count", "Square footage premium", "Walk Score 92", "School rating 9/10", "In-unit laundry", "Sub-market premium (Beverly Hills)"
-        "dollarImpact": number,   // signed $ adjustment vs. base
-        "rationale": string       // 1-sentence cite-able reasoning
+        "factor": string,         // "Square footage vs. ZIP median", "Walk Score 92", "School rating 9/10", "In-unit laundry"
+        "dollarImpact": number,   // signed $ adjustment vs. base — MUST be 0 when verified=false
+        "rationale": string,      // 1-sentence cite-able reasoning referencing the subject's real specs
+        "verified": boolean       // true ONLY if the underlying fact is confirmed by a named source
       }
     ],
+
     "finalEstimate": number,      // MUST equal rentEstimates.subjectEstimate
     "methodology": string,        // 2-3 sentences describing weighting (HUD SAFMR + comp regression + amenity hedonic model)
     "confidenceDrivers": string[] // why High/Medium/Low confidence (e.g. "5 comps within 0.5mi", "no recent listings — using ZIP median")
@@ -157,9 +179,21 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
   // Only when an address is provided — otherwise omit:
   "property"?: {
     "addressNormalized": string,
+    "beds": number,               // THE canonical bedroom count for the subject — used everywhere
+    "baths": number,
+    "sqft": number,
+    "bedsBathsSqftSource": string, // named source, e.g. "Cass County Assessor" — empty string if not verified
+    "listingPrice": number,        // list price if the property is listed, else 0
     "yearBuilt": number,
     "yearBuiltSource": string,    // e.g. "Cass County Assessor 2024"
     "lotSizeSqft": number,
+    "features": {
+      // "Yes" | "No" | "Unknown" only — "Unknown" unless explicitly confirmed. NEVER guess.
+      "garage": string, "basement": string, "centralAir": string, "laundry": string,
+      "fencedYard": string, "updatedKitchen": string, "updatedBathrooms": string,
+      "hardwoodFloors": string, "pool": string, "dishwasher": string,
+      "featuresSource": string    // where the confirmed features came from
+    },
     "estimatedValue": number,     // MEDIAN of the three values below
     "valueTriangulation": {
       "zillowZestimate": number,
@@ -174,9 +208,11 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "neighborhood": string,
     "nearbyComps": [
       // Each comp MUST: same ZIP or ≤0.5mi, same propertyType, ±1 bedroom, listed/rented within 6 months
-      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number, "listedWithinMonths": number, "source": string }
+      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number,
+        "daysOnMarket": number, "listedDate": string, "propertyType": string, "listedWithinMonths": number, "source": string }
     ],
     "compSearchRadiusMi": number, // 0.5 default; note if widened to 1.0
+
 
     "rentMaxStrategy": {
       "recommendedRent": number,
@@ -210,8 +246,9 @@ Deno.serve(async (req) => {
 
     const useAuto = autoDetect || (beds == null && baths == null && sqft == null);
     const subjectLine = useAuto
-      ? `Subject property: AUTO-DETECT beds/baths/sqft from the listing URL${listingUrl ? '' : ' and/or public records for the address'}. Echo the detected values in property.addressNormalized + nearbyComps reasoning. If unverifiable, fall back to the ZIP's median 2bd/1ba/1000sqft and mark dataConfidence "Low".`
-      : `Subject property: ${beds ?? 2} bed / ${baths ?? 1} bath / ${sqft ?? 1000} sqft`;
+      ? `Subject property: AUTO-DETECT beds/baths/sqft from the listing URL${listingUrl ? '' : ' and/or public records for the address'}. Return the detected values in property.beds/baths/sqft with property.bedsBathsSqftSource naming the source. If you cannot verify them, return 0 for each and an empty bedsBathsSqftSource — do NOT substitute a ZIP median as if it were the subject.`
+      : `Subject property (VERIFIED by the user — every section, adjustment, comp filter, and explanation MUST use exactly these): ${beds ?? 2} bed / ${baths ?? 1} bath / ${sqft ?? 1000} sqft. Echo these same values back in property.beds/baths/sqft. Never reference a different bedroom count or square footage anywhere in the response.`;
+
 
     const userPrompt = `ZIP code: ${zip}
 ${address ? `Property address: ${address}` : ''}
