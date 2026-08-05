@@ -179,9 +179,21 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
   // Only when an address is provided — otherwise omit:
   "property"?: {
     "addressNormalized": string,
+    "beds": number,               // THE canonical bedroom count for the subject — used everywhere
+    "baths": number,
+    "sqft": number,
+    "bedsBathsSqftSource": string, // named source, e.g. "Cass County Assessor" — empty string if not verified
+    "listingPrice": number,        // list price if the property is listed, else 0
     "yearBuilt": number,
     "yearBuiltSource": string,    // e.g. "Cass County Assessor 2024"
     "lotSizeSqft": number,
+    "features": {
+      // "Yes" | "No" | "Unknown" only — "Unknown" unless explicitly confirmed. NEVER guess.
+      "garage": string, "basement": string, "centralAir": string, "laundry": string,
+      "fencedYard": string, "updatedKitchen": string, "updatedBathrooms": string,
+      "hardwoodFloors": string, "pool": string, "dishwasher": string,
+      "featuresSource": string    // where the confirmed features came from
+    },
     "estimatedValue": number,     // MEDIAN of the three values below
     "valueTriangulation": {
       "zillowZestimate": number,
@@ -196,9 +208,11 @@ For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScrip
     "neighborhood": string,
     "nearbyComps": [
       // Each comp MUST: same ZIP or ≤0.5mi, same propertyType, ±1 bedroom, listed/rented within 6 months
-      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number, "listedWithinMonths": number, "source": string }
+      { "address": string, "beds": number, "baths": number, "sqft": number, "rent": number, "distanceMi": number,
+        "daysOnMarket": number, "listedDate": string, "propertyType": string, "listedWithinMonths": number, "source": string }
     ],
     "compSearchRadiusMi": number, // 0.5 default; note if widened to 1.0
+
 
     "rentMaxStrategy": {
       "recommendedRent": number,
