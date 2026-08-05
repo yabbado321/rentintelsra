@@ -107,5 +107,3 @@ export default function AppLayout({ activePage, onPageChange, children }: AppLay
     </div>
   );
 }
-
-export type { Page };
