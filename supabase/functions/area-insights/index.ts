@@ -78,7 +78,23 @@ Prioritize 100% certain results. For EVERY numeric or factual value you output:
 ## 8. WHEN DATA IS UNAVAILABLE:
   State "Insufficient data — manual verification recommended." Do NOT fabricate plausible-sounding numbers. Do NOT use city averages as ZIP/property substitutes.
 
+## 9. FEATURE VERIFICATION (zero tolerance for hallucinated amenities):
+  For garage, basement, central air, in-unit laundry, fenced yard, updated kitchen, updated bathrooms, hardwood floors, pool, dishwasher —
+  return EXACTLY one of "Yes" | "No" | "Unknown" in property.features. Use "Yes" ONLY when the listing text, listing photos description,
+  or public records explicitly confirm it. If the listing does not mention it, the answer is "Unknown" — never "No" and never "Yes".
+  NEVER assume renovations, upgrades, or amenities from the year built, price, or neighborhood.
+
+## 10. ADJUSTMENT DISCIPLINE:
+  Each rentBreakdown.adjustments entry MUST carry "verified": true|false. Set true only when the underlying fact is confirmed
+  by a named source. If "verified" is false, "dollarImpact" MUST be 0. Never apply a dollar credit for an unverified feature.
+  Adjustments must reference the SUBJECT property's actual beds/baths/sqft — never a different unit size.
+
+## 11. NO NARRATIVE INVENTION:
+  Do not write speculative market trends, neighborhood characterizations, or investment advice that is not backed by a number
+  you are also returning in the JSON. Prefer quantitative metrics over prose.
+
 Cross-reference at least 3 independent sources before stating any number. NEVER invent comp addresses. If you cannot verify, mark confidence "Low" and widen ranges.
+
 
 For the given ZIP code, return STRICT JSON (no markdown) matching this TypeScript type:
 
