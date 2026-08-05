@@ -246,8 +246,9 @@ Deno.serve(async (req) => {
 
     const useAuto = autoDetect || (beds == null && baths == null && sqft == null);
     const subjectLine = useAuto
-      ? `Subject property: AUTO-DETECT beds/baths/sqft from the listing URL${listingUrl ? '' : ' and/or public records for the address'}. Echo the detected values in property.addressNormalized + nearbyComps reasoning. If unverifiable, fall back to the ZIP's median 2bd/1ba/1000sqft and mark dataConfidence "Low".`
-      : `Subject property: ${beds ?? 2} bed / ${baths ?? 1} bath / ${sqft ?? 1000} sqft`;
+      ? `Subject property: AUTO-DETECT beds/baths/sqft from the listing URL${listingUrl ? '' : ' and/or public records for the address'}. Return the detected values in property.beds/baths/sqft with property.bedsBathsSqftSource naming the source. If you cannot verify them, return 0 for each and an empty bedsBathsSqftSource — do NOT substitute a ZIP median as if it were the subject.`
+      : `Subject property (VERIFIED by the user — every section, adjustment, comp filter, and explanation MUST use exactly these): ${beds ?? 2} bed / ${baths ?? 1} bath / ${sqft ?? 1000} sqft. Echo these same values back in property.beds/baths/sqft. Never reference a different bedroom count or square footage anywhere in the response.`;
+
 
     const userPrompt = `ZIP code: ${zip}
 ${address ? `Property address: ${address}` : ''}
