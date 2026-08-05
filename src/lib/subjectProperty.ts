@@ -447,7 +447,7 @@ function scoreConfidence(args: {
   else if (args.comps.length > 0) { score += 6; drivers.push({ ok: false, text: `Only ${args.comps.length} comparable rental(s) found — thin comp set` }); }
   else { drivers.push({ ok: false, text: "No verifiable rental comps found" }); }
 
-  if (args.specVerification === "verified") { score += 15; drivers.push({ ok: true, text: `Property specs verified (${args.specSourceLabel ?? "named source"})` }); }
+  if (args.specVerification === "verified") { score += 15; drivers.push({ ok: true, text: `Property specs verified` }); }
   else if (args.specVerification === "estimated") { score += 5; drivers.push({ ok: false, text: "Property specs extracted without a named source" }); }
   else { drivers.push({ ok: false, text: "Property specs could not be verified" }); }
 
