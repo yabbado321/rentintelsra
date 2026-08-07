@@ -46,14 +46,27 @@ function num(raw: string | undefined | null): number | null {
 
 async function fetchAcs(zip: string, year: number, errors: string[]) {
   const get = Object.values(VARS).join(',');
-  const url = `https://api.census.gov/data/${year}/acs/acs5?get=${get}&for=zip%20code%20tabulation%20area:${zip}`;
+  // The Census API is free but now requires a free registered key.
+  const key = Deno.env.get('CENSUS_API_KEY');
+  const url =
+    `https://api.census.gov/data/${year}/acs/acs5?get=${get}&for=zip%20code%20tabulation%20area:${zip}` +
+    (key ? `&key=${encodeURIComponent(key)}` : '');
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { redirect: 'manual' });
+    if (res.status === 302 || res.status === 301) {
+      errors.push(`ACS ${year}: Census API rejected the request (missing or invalid CENSUS_API_KEY).`);
+      return null;
+    }
     if (!res.ok) {
       errors.push(`ACS ${year}: HTTP ${res.status}`);
       return null;
     }
-    const rows = (await res.json()) as string[][];
+    const text = await res.text();
+    if (!text.trim().startsWith('[')) {
+      errors.push(`ACS ${year}: Census API returned a non-data response.`);
+      return null;
+    }
+    const rows = JSON.parse(text) as string[][];
     if (!Array.isArray(rows) || rows.length < 2) return null;
     const header = rows[0];
     const row = rows[1];
@@ -161,6 +174,7 @@ Deno.serve(async (req) => {
         zip: z,
         retrievedAt: new Date().toISOString(),
         acsYear: acs?.year ?? null,
+        censusAvailable: !!acs,
         sources: [
           acs ? `US Census Bureau ACS 5-Year ${acs.year} (ZCTA ${z})` : null,
           place ? 'Zippopotam.us public ZIP place directory' : null,
