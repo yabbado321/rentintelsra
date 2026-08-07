@@ -10,6 +10,7 @@ export interface ZipMarketData {
   zip: string;
   retrievedAt: string;
   acsYear: number | null;
+  censusAvailable: boolean;
   sources: string[];
   place: {
     city: string | null;

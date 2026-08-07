@@ -308,6 +308,17 @@ export default function ZipLookupPage() {
                 </div>
               </div>
 
+              {!market.censusAvailable && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-muted-foreground flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
+                  <span>
+                    The Census ACS dataset did not return data for this ZIP, so demographic and housing statistics are
+                    Unknown. Nothing below is estimated.
+                    {market.datasetErrors.length > 0 && <> Reason: {market.datasetErrors[0]}</>}
+                  </span>
+                </div>
+              )}
+
               <div>
                 <h2 className="mb-2 text-sm font-semibold text-foreground">Population &amp; Employment</h2>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
