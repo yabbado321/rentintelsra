@@ -447,9 +447,13 @@ export default function ZipLookupPage() {
       </section>
 
 
-      {/* ------------------------- MODE 2 ------------------------- */}
-      {mode === "property" && (
-        <section className="space-y-5">
+      {/* ==================== PROPERTY ANALYSIS (MANUAL) ==================== */}
+      <section className="space-y-5">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 pt-2">
+          <Calculator className="w-4 h-4 text-primary" /> Property Analysis
+          <span className="ml-2 text-[11px] font-normal text-muted-foreground">Manual property information</span>
+        </h2>
+
           <div className={card}>
             <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
               <Building2 className="w-4 h-4 text-primary" /> Property Details
