@@ -12,7 +12,6 @@ import {
 import { fetchZipMarket, fmtUnknown, int0, money0, pct1, type ZipMarketData } from "@/lib/zipMarket";
 import { hasProvider, USER_INPUT_SOURCE, PUBLIC_DATASET_SOURCE, CALCULATED_SOURCE } from "@/lib/providers/propertyDataProvider";
 
-type Mode = "market" | "property";
 
 const card = "rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm p-5";
 const labelCls = "text-[11px] uppercase tracking-wider text-muted-foreground font-medium";
@@ -82,7 +81,6 @@ function TriToggle({ label, value, onChange }: { label: string; value: TriState;
 /* ------------------------------------------------------------------ */
 
 export default function ZipLookupPage() {
-  const [mode, setMode] = useState<Mode>("market");
 
   // ---- Mode 1: ZIP market research (free public datasets) ----
   const [zip, setZip] = useState("");
