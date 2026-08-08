@@ -179,7 +179,7 @@ export default function ZipLookupPage() {
       { field: "Bedrooms", value: fmtUnknown(input.bedrooms, int0), source: USER_INPUT_SOURCE, used: true },
       { field: "Bathrooms", value: fmtUnknown(input.bathrooms, (n) => n.toString()), source: USER_INPUT_SOURCE, used: true },
       { field: "Square Footage", value: fmtUnknown(input.squareFootage, int0), source: USER_INPUT_SOURCE, used: true },
-      { field: "Year Built", value: fmtUnknown(input.yearBuilt, (n) => n.toString()), source: USER_INPUT_SOURCE, used: true },
+      { field: "Year Built", value: fmtUnknown(input.yearBuilt, (n) => n.toString()), source: USER_INPUT_SOURCE, used: input.yearBuilt !== null },
       { field: "Lot Size (sqft)", value: fmtUnknown(input.lotSizeSqft, int0), source: USER_INPUT_SOURCE, used: false },
       { field: "Purchase Price", value: fmtUnknown(input.purchasePrice, money0), source: USER_INPUT_SOURCE, used: true },
       { field: "Expected Rent", value: fmtUnknown(input.expectedRent, money0), source: USER_INPUT_SOURCE, used: true },
