@@ -5,20 +5,24 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
  * ---------------------------------------------------------------
  * Sources:
  *   - US Census Bureau, American Community Survey 5-Year (ZCTA level).
- *     Public, keyless API. https://api.census.gov/data
+ *   - Census Geocoder (county lookup from ZIP centroid coordinates).
  *   - Zippopotam.us (public USPS-derived place names, keyless).
  *
  * Rules enforced here:
  *   - No AI is called. No estimation. No interpolation.
  *   - Any field the datasets do not return is emitted as null and the UI
- *     renders "Unknown".
- *   - Every returned metric carries its dataset name and vintage.
+ *     renders "Unavailable".
+ *   - Every returned metric carries its variable, dataset name, vintage and
+ *     geographic level.
  */
 
 const ACS_YEARS = [2023, 2022] as const;
+const DATASET_NAME = 'American Community Survey 5-Year Estimates (acs/acs5)';
+const GEO_LEVEL = 'ZIP Code Tabulation Area (ZCTA5)';
 
 const VARS = {
   population: 'B01003_001E',
+  medianAge: 'B01002_001E',
   medianHouseholdIncome: 'B19013_001E',
   medianHomeValue: 'B25077_001E',
   medianGrossRent: 'B25064_001E',
@@ -29,8 +33,17 @@ const VARS = {
   vacantUnits: 'B25002_003E',
   housingUnits: 'B25001_001E',
   laborForce: 'B23025_003E',
+  employed: 'B23025_004E',
   unemployed: 'B23025_005E',
   medianYearBuilt: 'B25035_001E',
+  povertyUniverse: 'B17001_001E',
+  povertyBelow: 'B17001_002E',
+  eduTotal: 'B15003_001E',
+  eduBachelors: 'B15003_022E',
+  eduMasters: 'B15003_023E',
+  eduProfessional: 'B15003_024E',
+  eduDoctorate: 'B15003_025E',
+  medianGrossRentPctIncome: 'B25071_001E',
 } as const;
 
 type VarKey = keyof typeof VARS;
@@ -46,7 +59,6 @@ function num(raw: string | undefined | null): number | null {
 
 async function fetchAcs(zip: string, year: number, errors: string[]) {
   const get = Object.values(VARS).join(',');
-  // The Census API is free but now requires a free registered key.
   const key = Deno.env.get('CENSUS_API_KEY');
   const url =
     `https://api.census.gov/data/${year}/acs/acs5?get=${get}&for=zip%20code%20tabulation%20area:${zip}` +
@@ -104,6 +116,28 @@ async function fetchPlace(zip: string, errors: string[]) {
   }
 }
 
+/** County name from the free Census Geocoder using the ZIP centroid. */
+async function fetchCounty(lat: number | null, lon: number | null, errors: string[]) {
+  if (lat === null || lon === null) return null;
+  try {
+    const url =
+      `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}` +
+      `&benchmark=Public_AR_Current&vintage=Current_Current&layers=Counties&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      errors.push(`Census Geocoder: HTTP ${res.status}`);
+      return null;
+    }
+    const j = await res.json();
+    const counties = j?.result?.geographies?.Counties;
+    const name = Array.isArray(counties) && counties[0]?.NAME ? String(counties[0].NAME) : null;
+    return name;
+  } catch (e) {
+    errors.push(`Census Geocoder: ${e instanceof Error ? e.message : 'network error'}`);
+    return null;
+  }
+}
+
 /** Same ACS pull for prior vintages so the UI can show a real historical trend. */
 async function fetchTrend(zip: string, currentYear: number, errors: string[]) {
   const years = [currentYear - 4, currentYear - 2, currentYear].filter((y) => y >= 2015);
@@ -136,11 +170,12 @@ Deno.serve(async (req) => {
     }
 
     let acs: Awaited<ReturnType<typeof fetchAcs>> = null;
-    const [place] = await Promise.all([fetchPlace(z, errors)]);
+    const place = await fetchPlace(z, errors);
     for (const y of ACS_YEARS) {
       acs = await fetchAcs(z, y, errors);
       if (acs) break;
     }
+    const county = await fetchCounty(place?.latitude ?? null, place?.longitude ?? null, errors);
 
     if (!acs && !place) {
       return new Response(
@@ -150,6 +185,8 @@ Deno.serve(async (req) => {
     }
 
     const v = acs?.values;
+    const retrievedAt = new Date().toISOString();
+
     const vacancyRate =
       v && v.tenureTotal && v.vacantUnits !== null && v.tenureTotal > 0
         ? (v.vacantUnits / v.tenureTotal) * 100
@@ -166,32 +203,85 @@ Deno.serve(async (req) => {
       v && v.laborForce && v.unemployed !== null && v.laborForce > 0 ? (v.unemployed / v.laborForce) * 100 : null;
     const rentToValue =
       v && v.medianGrossRent && v.medianHomeValue ? ((v.medianGrossRent * 12) / v.medianHomeValue) * 100 : null;
+    const povertyRate =
+      v && v.povertyUniverse && v.povertyBelow !== null && v.povertyUniverse > 0
+        ? (v.povertyBelow / v.povertyUniverse) * 100
+        : null;
+    const bachelorsPlus =
+      v && v.eduTotal && v.eduTotal > 0
+        ? (((v.eduBachelors ?? 0) + (v.eduMasters ?? 0) + (v.eduProfessional ?? 0) + (v.eduDoctorate ?? 0)) /
+            v.eduTotal) *
+          100
+        : null;
+    const rentToIncome =
+      v && v.medianGrossRent && v.medianHouseholdIncome && v.medianHouseholdIncome > 0
+        ? ((v.medianGrossRent * 12) / v.medianHouseholdIncome) * 100
+        : null;
+
+    // Per-field provenance for every raw Census value.
+    const fieldMeta = (
+      [
+        ['Population', 'population'],
+        ['Median Age', 'medianAge'],
+        ['Median Household Income', 'medianHouseholdIncome'],
+        ['Median Home Value', 'medianHomeValue'],
+        ['Median Gross Rent', 'medianGrossRent'],
+        ['Total Housing Units', 'housingUnits'],
+        ['Occupied Housing Units', 'occupiedTotal'],
+        ['Vacant Housing Units', 'vacantUnits'],
+        ['Owner-Occupied Units', 'ownerOccupied'],
+        ['Renter-Occupied Units', 'renterOccupied'],
+        ['Civilian Labor Force', 'laborForce'],
+        ['Employed', 'employed'],
+        ['Unemployed', 'unemployed'],
+        ['Median Year Built', 'medianYearBuilt'],
+        ['Population Below Poverty', 'povertyBelow'],
+        ['Poverty Universe', 'povertyUniverse'],
+        ['Median Gross Rent as % of Income', 'medianGrossRentPctIncome'],
+      ] as [string, VarKey][]
+    ).map(([label, key]) => ({
+      label,
+      value: v?.[key] ?? null,
+      variable: VARS[key],
+      dataset: DATASET_NAME,
+      year: acs?.year ?? null,
+      geography: GEO_LEVEL,
+      retrievedAt,
+    }));
 
     const trend = acs ? await fetchTrend(z, acs.year, errors) : [];
 
     return new Response(
       JSON.stringify({
         zip: z,
-        retrievedAt: new Date().toISOString(),
+        retrievedAt,
         acsYear: acs?.year ?? null,
+        datasetName: DATASET_NAME,
+        geographyLevel: GEO_LEVEL,
         censusAvailable: !!acs,
         sources: [
           acs ? `US Census Bureau ACS 5-Year ${acs.year} (ZCTA ${z})` : null,
+          county ? 'US Census Bureau Geocoder (county, ZIP centroid)' : null,
           place ? 'Zippopotam.us public ZIP place directory' : null,
         ].filter(Boolean),
         place: {
           city: place?.city ?? null,
           state: place?.state ?? null,
           stateName: place?.stateName ?? null,
-          county: null, // not available from these datasets
+          county,
           latitude: place?.latitude ?? null,
           longitude: place?.longitude ?? null,
         },
         demographics: {
           population: v?.population ?? null,
+          medianAge: v?.medianAge ?? null,
           medianHouseholdIncome: v?.medianHouseholdIncome ?? null,
           unemploymentRate,
           laborForce: v?.laborForce ?? null,
+          employed: v?.employed ?? null,
+          unemployed: v?.unemployed ?? null,
+          povertyRate,
+          bachelorsPlusPct: bachelorsPlus,
         },
         housing: {
           medianHomeValue: v?.medianHomeValue ?? null,
@@ -199,6 +289,8 @@ Deno.serve(async (req) => {
           housingUnits: v?.housingUnits ?? null,
           occupiedUnits: v?.occupiedTotal ?? null,
           vacantUnits: v?.vacantUnits ?? null,
+          ownerOccupiedUnits: v?.ownerOccupied ?? null,
+          renterOccupiedUnits: v?.renterOccupied ?? null,
           vacancyRate,
           ownerOccupiedPct: ownerPct,
           renterOccupiedPct: renterPct,
@@ -206,7 +298,10 @@ Deno.serve(async (req) => {
           grossRentMultiplierMarket:
             v?.medianHomeValue && v?.medianGrossRent ? v.medianHomeValue / (v.medianGrossRent * 12) : null,
           rentToValuePct: rentToValue,
+          rentToIncomePct: rentToIncome,
+          medianGrossRentPctIncomeCensus: v?.medianGrossRentPctIncome ?? null,
         },
+        fieldMeta,
         trend,
         datasetErrors: errors,
       }),
