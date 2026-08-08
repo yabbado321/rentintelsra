@@ -246,140 +246,206 @@ export default function ZipLookupPage() {
         </div>
       )}
 
-      <div className="inline-flex rounded-xl border border-border/60 bg-background/40 p-1">
-        {([["market", "ZIP Market Research", TrendingUp], ["property", "Manual Property Analysis", Calculator]] as const).map(
-          ([id, label, Icon]) => (
+      {/* ==================== ZIP MARKET RESEARCH ==================== */}
+      <section className="space-y-5">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary" /> ZIP Market Research
+          <span className="ml-2 text-[11px] font-normal text-muted-foreground">Automated · US Census Bureau</span>
+        </h2>
+
+        <div className={card}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex-1 min-w-[200px]">
+              <span className={labelCls}>ZIP Code</span>
+              <input
+                className={`${inputCls} mt-1 font-mono`}
+                value={zip}
+                maxLength={5}
+                placeholder="58103"
+                onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => e.key === "Enter" && loadMarket()}
+              />
+            </label>
             <button
-              key={id}
-              onClick={() => setMode(id)}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 ${
-                mode === id ? "bg-primary text-primary-foreground shadow-elegant" : "text-muted-foreground hover:text-foreground"
-              }`}
+              onClick={loadMarket}
+              disabled={loading}
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60 flex items-center gap-2"
             >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              Analyze ZIP
             </button>
-          ),
-        )}
-      </div>
-
-      {/* ------------------------- MODE 1 ------------------------- */}
-      {mode === "market" && (
-        <section className="space-y-5">
-          <div className={card}>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex-1 min-w-[200px]">
-                <span className={labelCls}>ZIP Code</span>
-                <input
-                  className={`${inputCls} mt-1 font-mono`}
-                  value={zip}
-                  maxLength={5}
-                  placeholder="58103"
-                  onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && loadMarket()}
-                />
-              </label>
-              <button
-                onClick={loadMarket}
-                disabled={loading}
-                className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60 flex items-center gap-2"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Research ZIP
-              </button>
-            </div>
-            {marketError && (
-              <p className="mt-3 text-xs text-destructive flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5" /> {marketError}
-              </p>
-            )}
           </div>
+          {marketError && (
+            <p className="mt-3 text-xs text-destructive flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {marketError}
+            </p>
+          )}
+        </div>
 
-          {market && (
-            <>
+        {market && (
+          <>
+            {/* ---- Market Snapshot ---- */}
+            <div className={card}>
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <MapPin className="w-4 h-4 text-primary" />
+                {market.place.city ?? "Unavailable"}
+                {market.place.state ? `, ${market.place.state}` : ""} · ZIP {market.zip}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                County: {market.place.county ?? "Unavailable"} · Geography: {market.geographyLevel} · Dataset vintage{" "}
+                {market.acsYear ?? "Unavailable"}
+              </div>
+            </div>
+
+            {!market.censusAvailable && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-muted-foreground flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
+                <span>
+                  Market data temporarily unavailable — the Census ACS dataset returned no data for this ZIP, so
+                  statistics below show as Unavailable. Nothing is estimated. Property Analysis below still works.
+                  {market.datasetErrors.length > 0 && <> Reason: {market.datasetErrors[0]}</>}
+                </span>
+              </div>
+            )}
+
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Market Snapshot <span className="text-[11px] font-normal text-muted-foreground">— Census, ZCTA level</span></h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Population" value={fmtUnknown(market.demographics.population, int0)} />
+                <Stat label="Median Household Income" value={fmtUnknown(market.demographics.medianHouseholdIncome, money0)} />
+                <Stat label="Median Home Value" value={fmtUnknown(market.housing.medianHomeValue, money0)} />
+                <Stat label="Median Gross Rent" value={fmtUnknown(market.housing.medianGrossRent, money0)} note="Monthly, incl. utilities" />
+                <Stat label="Total Housing Units" value={fmtUnknown(market.housing.housingUnits, int0)} />
+                <Stat label="Occupied Housing Units" value={fmtUnknown(market.housing.occupiedUnits, int0)} />
+                <Stat label="Vacant Housing Units" value={fmtUnknown(market.housing.vacantUnits, int0)} />
+                <Stat label="Vacancy Rate" value={fmtUnknown(market.housing.vacancyRate, pct1)} note="RentIntel calculation from Census units" />
+              </div>
+            </div>
+
+            {/* ---- Housing Market ---- */}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Housing Market</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Median Home Value — Census" value={fmtUnknown(market.housing.medianHomeValue, money0)} />
+                <Stat label="Owner-Occupied Units — Census" value={fmtUnknown(market.housing.ownerOccupiedUnits, int0)} />
+                <Stat label="Renter-Occupied Units — Census" value={fmtUnknown(market.housing.renterOccupiedUnits, int0)} />
+                <Stat label="Median Year Built — Census" value={fmtUnknown(market.housing.medianYearBuilt, (n) => n.toString())} />
+                <Stat label="Owner Occupancy — RentIntel calculation" value={fmtUnknown(market.housing.ownerOccupiedPct, pct1)} />
+                <Stat label="Renter Occupancy — RentIntel calculation" value={fmtUnknown(market.housing.renterOccupiedPct, pct1)} />
+                <Stat label="Market GRM — RentIntel calculation" value={fmtUnknown(market.housing.grossRentMultiplierMarket, (n) => n.toFixed(1))} note="Median value ÷ annual median rent" />
+                <Stat label="Rent-to-Value — RentIntel calculation" value={fmtUnknown(market.housing.rentToValuePct, pct1)} note="Annual median rent ÷ median value" />
+              </div>
+            </div>
+
+            {/* ---- Rental Market ---- */}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Rental Market</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Median Gross Rent — Census" value={fmtUnknown(market.housing.medianGrossRent, money0)} />
+                <Stat label="Median Rent as % of Income — Census" value={fmtUnknown(market.housing.medianGrossRentPctIncomeCensus, pct1)} note="Census B25071" />
+                <Stat label="Renter Occupancy — RentIntel calculation" value={fmtUnknown(market.housing.renterOccupiedPct, pct1)} />
+                <Stat label="Vacancy Rate — RentIntel calculation" value={fmtUnknown(market.housing.vacancyRate, pct1)} />
+                <Stat label="Rent-to-Income Indicator — RentIntel calculation" value={fmtUnknown(market.housing.rentToIncomePct, pct1)} note="Annual median gross rent ÷ median household income" />
+                <Stat
+                  label="Housing Tenure Mix — RentIntel calculation"
+                  value={
+                    market.housing.ownerOccupiedPct === null || market.housing.renterOccupiedPct === null
+                      ? "Unavailable"
+                      : `${pct1(market.housing.ownerOccupiedPct)} own / ${pct1(market.housing.renterOccupiedPct)} rent`
+                  }
+                />
+              </div>
+            </div>
+
+            {/* ---- Demographics ---- */}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Demographics</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Median Age — Census" value={fmtUnknown(market.demographics.medianAge, (n) => n.toFixed(1))} />
+                <Stat label="Civilian Labor Force — Census" value={fmtUnknown(market.demographics.laborForce, int0)} />
+                <Stat label="Employed — Census" value={fmtUnknown(market.demographics.employed, int0)} />
+                <Stat label="Unemployed — Census" value={fmtUnknown(market.demographics.unemployed, int0)} />
+                <Stat label="Unemployment Rate — RentIntel calculation" value={fmtUnknown(market.demographics.unemploymentRate, pct1)} note="Unemployed ÷ civilian labor force" />
+                <Stat label="Poverty Rate — RentIntel calculation" value={fmtUnknown(market.demographics.povertyRate, pct1)} note="Below poverty ÷ poverty universe" />
+                <Stat label="Bachelor's Degree or Higher — RentIntel calculation" value={fmtUnknown(market.demographics.bachelorsPlusPct, pct1)} note="Share of population 25+" />
+              </div>
+            </div>
+
+            {market.trend.length > 0 && (
               <div className={card}>
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  {market.place.city ?? "Unknown"}
-                  {market.place.state ? `, ${market.place.state}` : ""} · ZIP {market.zip}
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  County: Unknown (not published in the datasets used) · ACS vintage {market.acsYear ?? "Unknown"}
-                </div>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Historical Trend (ACS vintages)</h3>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="pb-2">Year</th>
+                      <th className="pb-2">Median Gross Rent</th>
+                      <th className="pb-2">Median Home Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {market.trend.map((t) => (
+                      <tr key={t.year} className="border-t border-border/40">
+                        <td className="py-2">{t.year}</td>
+                        <td className="py-2">{fmtUnknown(t.medianGrossRent, money0)}</td>
+                        <td className="py-2">{fmtUnknown(t.medianHomeValue, money0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            )}
 
-              {!market.censusAvailable && (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-xs text-muted-foreground flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
-                  <span>
-                    The Census ACS dataset did not return data for this ZIP, so demographic and housing statistics are
-                    Unknown. Nothing below is estimated.
-                    {market.datasetErrors.length > 0 && <> Reason: {market.datasetErrors[0]}</>}
-                  </span>
-                </div>
-              )}
-
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Population &amp; Employment</h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Stat label="Population" value={fmtUnknown(market.demographics.population, int0)} />
-                  <Stat label="Median Household Income" value={fmtUnknown(market.demographics.medianHouseholdIncome, money0)} />
-                  <Stat label="Civilian Labor Force" value={fmtUnknown(market.demographics.laborForce, int0)} />
-                  <Stat label="Unemployment Rate" value={fmtUnknown(market.demographics.unemploymentRate, pct1)} />
-                </div>
+            {/* ---- Data Sources ---- */}
+            <div className={card}>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Database className="w-3.5 h-3.5 text-primary" /> Data Sources
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 text-[11px] text-muted-foreground">
+                <div>Provider: <span className="text-foreground">U.S. Census Bureau</span></div>
+                <div>Dataset: <span className="text-foreground">{market.datasetName}</span></div>
+                <div>Dataset year: <span className="text-foreground">{market.acsYear ?? "Unavailable"}</span></div>
+                <div>Geographic level: <span className="text-foreground">{market.geographyLevel}</span></div>
+                <div>Retrieved: <span className="text-foreground">{new Date(market.retrievedAt).toLocaleString()}</span></div>
+                <div>Live data: <span className="text-foreground">No — published survey estimates, not real time</span></div>
               </div>
-
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Housing Statistics</h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Stat label="Median Home Value" value={fmtUnknown(market.housing.medianHomeValue, money0)} />
-                  <Stat label="Median Gross Rent" value={fmtUnknown(market.housing.medianGrossRent, money0)} note="Monthly, incl. utilities" />
-                  <Stat label="Housing Units" value={fmtUnknown(market.housing.housingUnits, int0)} />
-                  <Stat label="Vacancy Rate" value={fmtUnknown(market.housing.vacancyRate, pct1)} />
-                  <Stat label="Owner Occupancy" value={fmtUnknown(market.housing.ownerOccupiedPct, pct1)} />
-                  <Stat label="Renter Occupancy" value={fmtUnknown(market.housing.renterOccupiedPct, pct1)} />
-                  <Stat label="Median Year Built" value={fmtUnknown(market.housing.medianYearBuilt, (n) => n.toString())} />
-                  <Stat label="Market GRM" value={fmtUnknown(market.housing.grossRentMultiplierMarket, (n) => n.toFixed(1))} note="Median value / annual median rent" />
-                </div>
-              </div>
-
-              {market.trend.length > 0 && (
-                <div className={card}>
-                  <h2 className="mb-3 text-sm font-semibold text-foreground">Historical Trend (ACS vintages)</h2>
-                  <table className="w-full text-xs">
+              <ul className="mt-3 list-disc pl-4 space-y-0.5 text-[11px] text-muted-foreground">
+                {market.sources.map((s) => <li key={s}>{s}</li>)}
+              </ul>
+              {market.fieldMeta?.length > 0 && (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-[11px]">
                     <thead>
                       <tr className="text-left text-muted-foreground">
-                        <th className="pb-2">Year</th>
-                        <th className="pb-2">Median Gross Rent</th>
-                        <th className="pb-2">Median Home Value</th>
+                        <th className="pb-2">Field</th>
+                        <th className="pb-2">Value</th>
+                        <th className="pb-2">Variable</th>
+                        <th className="pb-2">Dataset / Year</th>
+                        <th className="pb-2">Geography</th>
                       </tr>
                     </thead>
-                    <tbody className="font-mono">
-                      {market.trend.map((t) => (
-                        <tr key={t.year} className="border-t border-border/40">
-                          <td className="py-2">{t.year}</td>
-                          <td className="py-2">{fmtUnknown(t.medianGrossRent, money0)}</td>
-                          <td className="py-2">{fmtUnknown(t.medianHomeValue, money0)}</td>
+                    <tbody>
+                      {market.fieldMeta.map((f) => (
+                        <tr key={f.variable} className="border-t border-border/40">
+                          <td className="py-1.5 pr-3">{f.label}</td>
+                          <td className="py-1.5 pr-3 font-mono">{fmtUnknown(f.value, int0)}</td>
+                          <td className="py-1.5 pr-3 font-mono">{f.variable}</td>
+                          <td className="py-1.5 pr-3">ACS 5-Year {f.year ?? "Unavailable"}</td>
+                          <td className="py-1.5">{f.geography}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Fields the dataset does not publish are shown as Unavailable. No value on this page is estimated or
+                AI-generated.
+              </p>
+            </div>
+          </>
+        )}
+      </section>
 
-              <div className={`${card} text-[11px] text-muted-foreground`}>
-                <div className="flex items-center gap-2 font-semibold text-foreground mb-1">
-                  <Database className="w-3.5 h-3.5 text-primary" /> Sources
-                </div>
-                <ul className="list-disc pl-4 space-y-0.5">
-                  {market.sources.map((s) => <li key={s}>{s}</li>)}
-                </ul>
-                <p className="mt-2">Retrieved {new Date(market.retrievedAt).toLocaleString()}. Fields the datasets do not publish are shown as Unknown.</p>
-              </div>
-            </>
-          )}
-        </section>
-      )}
 
       {/* ------------------------- MODE 2 ------------------------- */}
       {mode === "property" && (
