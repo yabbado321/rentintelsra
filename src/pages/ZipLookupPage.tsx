@@ -21,7 +21,7 @@ const inputCls =
 /* ------------------------------------------------------------------ */
 
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
-  const unknown = value === "Unknown";
+  const unknown = value === "Unknown" || value === "Unavailable";
   return (
     <div className="rounded-xl border border-border/50 bg-secondary/20 px-4 py-3">
       <div className={labelCls}>{label}</div>
