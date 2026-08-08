@@ -702,8 +702,8 @@ export default function ZipLookupPage() {
               <Home className="w-4 h-4 text-primary" /> Enter the property details above to run the underwriting engine.
             </div>
           )}
-        </section>
-      )}
+      </section>
+
     </div>
   );
 }
