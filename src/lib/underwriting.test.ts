@@ -266,8 +266,8 @@ describe("edge cases", () => {
 describe("deal score behaviour", () => {
   it("does not award a near-perfect score to a fragile high-return deal", () => {
     const fragile = computeUnderwriting({
-      ...DEAL, purchasePrice: 150000, monthlyBaseRent: 2500, downPaymentPct: 5,
-      interestRatePct: 11, propertyTaxes: dollars(9000), insurance: dollars(4000),
+      ...DEAL, purchasePrice: 150000, monthlyBaseRent: 2200, downPaymentPct: 20, rehabBudget: 0,
+      interestRatePct: 9.5, propertyTaxes: dollars(4200), insurance: dollars(2400), vacancyPct: 3, capexReserve: pct(2), maintenance: pct(2),
     });
     const stable = computeUnderwriting({
       ...DEAL, purchasePrice: 260000, monthlyBaseRent: 2700, downPaymentPct: 30,
