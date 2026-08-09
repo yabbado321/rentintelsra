@@ -1,3 +1,4 @@
-# Welcome to your Lovable project
-
-TODO: Document your project here
+TO DO LIST: 
+  VALIDATE FORMULAS 
+  MAKE SURE DATA OUPUTS ARE CORRECT
+  GET API KEY FOR ZIP LOOK UP
