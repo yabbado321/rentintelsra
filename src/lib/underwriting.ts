@@ -72,8 +72,11 @@ export interface UnderwritingInputs {
   rehabBudget: number;
   /** Loan origination points, % of loan amount. */
   pointsPct?: number;
-  /** Flat lender fees (origination, underwriting, doc prep) in dollars. */
+  /** Flat lender fees in dollars. Overrides loanFeesPct when provided. */
   loanFees?: number;
+  /** Lender fees as % of the loan amount, used when loanFees is undefined. */
+  loanFeesPct?: number;
+
   /** Carry cost between funding and stabilization (dollars). */
   holdingCosts?: number;
   /** Number of months of debt service used to derive holding costs when holdingCosts is undefined. */
