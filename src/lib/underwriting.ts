@@ -72,8 +72,19 @@ export interface UnderwritingInputs {
   rehabBudget: number;
   /** Loan origination points, % of loan amount. */
   pointsPct?: number;
+  /** Flat lender fees (origination, underwriting, doc prep) in dollars. */
+  loanFees?: number;
+  /** Carry cost between funding and stabilization (dollars). */
+  holdingCosts?: number;
+  /** Number of months of debt service used to derive holding costs when holdingCosts is undefined. */
+  holdingMonths?: number;
+  inspectionFee?: number;
+  appraisalFee?: number;
+  /** Contingency on the rehab scope, % of rehab budget. */
+  rehabContingencyPct?: number;
   otherAcquisitionCosts?: number;
   sellerCredits?: number;
+
   financingType?: "Conventional" | "FHA" | "VA" | "Private" | "Other";
   /** After-repair value. Used for Loan-to-ARV and exit sanity checks only. */
   arv?: number;
