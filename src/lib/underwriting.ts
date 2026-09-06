@@ -187,7 +187,15 @@ export const DEFAULT_INPUTS: UnderwritingInputs = {
   depreciationYears: 27.5,
   rentSensitivityPct: 10,
   expenseSensitivityPct: 15,
+  // Acquisition cost conventions (all overridable per deal).
+  pointsPct: 0,
+  loanFeesPct: 1,
+  holdingMonths: 2,
+  inspectionFee: 500,
+  appraisalFee: 650,
+  rehabContingencyPct: 10,
 };
+
 
 const sum = (o?: Record<string, number | undefined>) =>
   o ? Object.values(o).reduce((a: number, b) => a + (Number(b) || 0), 0) : 0;
