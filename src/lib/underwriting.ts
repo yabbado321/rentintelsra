@@ -72,8 +72,22 @@ export interface UnderwritingInputs {
   rehabBudget: number;
   /** Loan origination points, % of loan amount. */
   pointsPct?: number;
+  /** Flat lender fees in dollars. Overrides loanFeesPct when provided. */
+  loanFees?: number;
+  /** Lender fees as % of the loan amount, used when loanFees is undefined. */
+  loanFeesPct?: number;
+
+  /** Carry cost between funding and stabilization (dollars). */
+  holdingCosts?: number;
+  /** Number of months of debt service used to derive holding costs when holdingCosts is undefined. */
+  holdingMonths?: number;
+  inspectionFee?: number;
+  appraisalFee?: number;
+  /** Contingency on the rehab scope, % of rehab budget. */
+  rehabContingencyPct?: number;
   otherAcquisitionCosts?: number;
   sellerCredits?: number;
+
   financingType?: "Conventional" | "FHA" | "VA" | "Private" | "Other";
   /** After-repair value. Used for Loan-to-ARV and exit sanity checks only. */
   arv?: number;
@@ -176,7 +190,15 @@ export const DEFAULT_INPUTS: UnderwritingInputs = {
   depreciationYears: 27.5,
   rentSensitivityPct: 10,
   expenseSensitivityPct: 15,
+  // Acquisition cost conventions (all overridable per deal).
+  pointsPct: 0,
+  loanFeesPct: 1,
+  holdingMonths: 2,
+  inspectionFee: 500,
+  appraisalFee: 650,
+  rehabContingencyPct: 10,
 };
+
 
 const sum = (o?: Record<string, number | undefined>) =>
   o ? Object.values(o).reduce((a: number, b) => a + (Number(b) || 0), 0) : 0;
@@ -382,17 +404,43 @@ export interface UnderwritingResult {
     monthlyAfterCapex: number;
   };
 
+  /**
+   * Sources and uses of capital — the ONLY definition of project cost and
+   * investor equity used anywhere in the application.
+   *
+   *   Total Project Cost = purchase price + closing costs + lender fees/points
+   *                      + rehab + rehab contingency + holding costs
+   *                      + inspection + appraisal + other acquisition costs
+   *                      − seller credits
+   *   Investor Equity (= "Cash Invested") = Total Project Cost − Loan Amount
+   */
   capital: {
     downPayment: number;
     closingCosts: number;
     rehab: number;
+    rehabContingency: number;
     points: number;
+    loanFees: number;
+    /** points + flat lender fees */
+    financingCosts: number;
+    holdingCosts: number;
+    inspection: number;
+    appraisal: number;
     otherAcquisitionCosts: number;
     sellerCredits: number;
+    loanAmount: number;
+    /** Sum of every use of funds. */
+    totalProjectCost: number;
+    /** Total Project Cost − Loan Amount. This IS "cash invested". */
+    investorEquity: number;
+    /** Alias of investorEquity — the single definition of cash invested. */
     cashInvested: number;
+    /** Alias of totalProjectCost, kept for readability in cost-basis metrics. */
     allInCost: number;
     allInPerUnit: number | null;
     allInPerSqFt: number | null;
+    uses: { key: string; label: string; amount: number; estimated: boolean }[];
+    sources: { key: string; label: string; amount: number; sharePct: number }[];
   };
 
   metrics: {
@@ -405,7 +453,10 @@ export interface UnderwritingResult {
     debtYieldPct: number | null;
     grm: number | null;
     ltvPct: number | null;
+    /** Loan ÷ Total Project Cost. The only loan-to-cost figure in the app. */
+    ltcPct: number | null;
     loanToArvPct: number | null;
+    equitySharePct: number | null;
     expenseRatioPct: number | null;
     breakEvenOccupancyPct: number | null;
     breakEvenRentMonthly: number | null;
@@ -414,6 +465,7 @@ export interface UnderwritingResult {
     rentPerSqFtMonthly: number | null;
     onePctRulePct: number | null;
   };
+
 
   projection: {
     years: YearRow[];
