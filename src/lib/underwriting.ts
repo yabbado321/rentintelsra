@@ -404,17 +404,43 @@ export interface UnderwritingResult {
     monthlyAfterCapex: number;
   };
 
+  /**
+   * Sources and uses of capital — the ONLY definition of project cost and
+   * investor equity used anywhere in the application.
+   *
+   *   Total Project Cost = purchase price + closing costs + lender fees/points
+   *                      + rehab + rehab contingency + holding costs
+   *                      + inspection + appraisal + other acquisition costs
+   *                      − seller credits
+   *   Investor Equity (= "Cash Invested") = Total Project Cost − Loan Amount
+   */
   capital: {
     downPayment: number;
     closingCosts: number;
     rehab: number;
+    rehabContingency: number;
     points: number;
+    loanFees: number;
+    /** points + flat lender fees */
+    financingCosts: number;
+    holdingCosts: number;
+    inspection: number;
+    appraisal: number;
     otherAcquisitionCosts: number;
     sellerCredits: number;
+    loanAmount: number;
+    /** Sum of every use of funds. */
+    totalProjectCost: number;
+    /** Total Project Cost − Loan Amount. This IS "cash invested". */
+    investorEquity: number;
+    /** Alias of investorEquity — the single definition of cash invested. */
     cashInvested: number;
+    /** Alias of totalProjectCost, kept for readability in cost-basis metrics. */
     allInCost: number;
     allInPerUnit: number | null;
     allInPerSqFt: number | null;
+    uses: { key: string; label: string; amount: number; estimated: boolean }[];
+    sources: { key: string; label: string; amount: number; sharePct: number }[];
   };
 
   metrics: {
@@ -427,7 +453,10 @@ export interface UnderwritingResult {
     debtYieldPct: number | null;
     grm: number | null;
     ltvPct: number | null;
+    /** Loan ÷ Total Project Cost. The only loan-to-cost figure in the app. */
+    ltcPct: number | null;
     loanToArvPct: number | null;
+    equitySharePct: number | null;
     expenseRatioPct: number | null;
     breakEvenOccupancyPct: number | null;
     breakEvenRentMonthly: number | null;
@@ -436,6 +465,7 @@ export interface UnderwritingResult {
     rentPerSqFtMonthly: number | null;
     onePctRulePct: number | null;
   };
+
 
   projection: {
     years: YearRow[];
