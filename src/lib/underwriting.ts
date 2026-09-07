@@ -579,18 +579,81 @@ function debtFor(i: UnderwritingInputs, overrides: { downPaymentPct?: number; in
   };
 }
 
+/**
+ * Sources & uses of capital. This is the ONLY place project cost and investor
+ * equity are defined. Every screen, the Deal Score and the PDF read from here.
+ *
+ *   Total Project Cost = purchase + closing + points + lender fees + rehab
+ *                      + rehab contingency + holding + inspection + appraisal
+ *                      + other acquisition costs − seller credits
+ *   Investor Equity ("cash invested") = Total Project Cost − Loan Amount
+ *   LTC = Loan Amount / Total Project Cost
+ */
 function capitalFor(i: UnderwritingInputs, downPaymentPct?: number) {
   const downPct = downPaymentPct ?? i.downPaymentPct;
   const downPayment = i.purchasePrice * (downPct / 100);
-  const closingCosts = i.purchasePrice * (i.closingCostPct / 100);
   const loanAmount = Math.max(0, i.purchasePrice * (1 - downPct / 100));
+  const closingCosts = i.purchasePrice * (i.closingCostPct / 100);
+  const rehab = i.rehabBudget || 0;
+  const rehabContingency = rehab * ((i.rehabContingencyPct ?? 0) / 100);
   const points = ((i.pointsPct || 0) / 100) * loanAmount;
-  const otherAcq = i.otherAcquisitionCosts || 0;
-  const credits = i.sellerCredits || 0;
-  const cashInvested = Math.max(0, downPayment + closingCosts + i.rehabBudget + points + otherAcq - credits);
-  const allInCost = i.purchasePrice + i.rehabBudget + closingCosts + points + otherAcq - credits;
-  return { downPayment, closingCosts, points, otherAcquisitionCosts: otherAcq, sellerCredits: credits, cashInvested, allInCost, loanAmount };
+  const loanFees =
+    i.loanFees !== undefined ? i.loanFees : ((i.loanFeesPct ?? 0) / 100) * loanAmount;
+  const financingCosts = points + loanFees;
+  const monthlyPI = monthlyPayment(loanAmount, i.interestRatePct, i.loanTermYears);
+  const holdingCosts =
+    i.holdingCosts !== undefined ? i.holdingCosts : monthlyPI * (i.holdingMonths ?? 0);
+  const inspection = i.inspectionFee ?? 0;
+  const appraisal = i.appraisalFee ?? 0;
+  const otherAcquisitionCosts = i.otherAcquisitionCosts || 0;
+  const sellerCredits = i.sellerCredits || 0;
+
+  const uses = [
+    { key: "purchase", label: "Purchase Price", amount: i.purchasePrice, estimated: false },
+    { key: "closing", label: `Closing Costs (${i.closingCostPct}%)`, amount: closingCosts, estimated: true },
+    { key: "points", label: "Loan Points", amount: points, estimated: false },
+    { key: "loanFees", label: "Lender / Origination Fees", amount: loanFees, estimated: i.loanFees === undefined },
+    { key: "rehab", label: "Rehab / CapEx Scope", amount: rehab, estimated: false },
+    { key: "contingency", label: `Rehab Contingency (${i.rehabContingencyPct ?? 0}%)`, amount: rehabContingency, estimated: true },
+    { key: "holding", label: "Holding / Carry Costs", amount: holdingCosts, estimated: i.holdingCosts === undefined },
+    { key: "inspection", label: "Inspection", amount: inspection, estimated: true },
+    { key: "appraisal", label: "Appraisal", amount: appraisal, estimated: true },
+    { key: "other", label: "Other Acquisition Costs", amount: otherAcquisitionCosts, estimated: false },
+    { key: "credits", label: "Seller Credits", amount: -sellerCredits, estimated: false },
+  ].filter((u) => u.amount !== 0);
+
+  const totalProjectCost = uses.reduce((a, u) => a + u.amount, 0);
+  const investorEquity = Math.max(0, totalProjectCost - loanAmount);
+  const sources = [
+    { key: "loan", label: "Senior Debt", amount: loanAmount, sharePct: totalProjectCost > 0 ? (loanAmount / totalProjectCost) * 100 : 0 },
+    { key: "equity", label: "Investor Equity (Cash Invested)", amount: investorEquity, sharePct: totalProjectCost > 0 ? (investorEquity / totalProjectCost) * 100 : 0 },
+  ];
+
+  return {
+    downPayment,
+    closingCosts,
+    rehab,
+    rehabContingency,
+    points,
+    loanFees,
+    financingCosts,
+    holdingCosts,
+    inspection,
+    appraisal,
+    otherAcquisitionCosts,
+    sellerCredits,
+    loanAmount,
+    totalProjectCost,
+    investorEquity,
+    /** Alias — the single definition of cash invested. */
+    cashInvested: investorEquity,
+    /** Alias — total project cost is the all-in cost basis. */
+    allInCost: totalProjectCost,
+    uses,
+    sources,
+  };
 }
+
 
 /** Solve break-even occupancy (income covers opex + debt service) by bisection. */
 function solveBreakEvenOccupancy(i: UnderwritingInputs, annualDebtService: number): number | null {
