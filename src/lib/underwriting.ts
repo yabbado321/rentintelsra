@@ -960,7 +960,9 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
   };
 
   const sensitivity: UnderwritingResult["sensitivity"] = {
+    scenarios: buildStressScenarios(i),
     rent: rentSensitivity,
+
     expense: expenseSensitivity,
     debt: {
       interestRate: [-1, -0.5, 0, 0.5, 1, 2].map((d) =>
