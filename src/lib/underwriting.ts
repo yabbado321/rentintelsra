@@ -988,8 +988,8 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     { label: "Cash Flow Before CapEx", value: cfBeforeCapex, op: "=" },
     { label: "CapEx Reserve", value: base.capex, op: "-" },
     { label: "Cash Flow After CapEx", value: cfAfterCapex, op: "=" },
-    { label: "Down Payment", value: cap.downPayment, op: "" },
     { label: "Purchase Price", value: i.purchasePrice, op: "" },
+
     ...cap.uses
       .filter((u) => u.key !== "purchase")
       .map((u) => ({
