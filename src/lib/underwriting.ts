@@ -519,16 +519,23 @@ export interface UnderwritingResult {
     afterTaxCashflowStream: number[];
     irrPreTaxPct: number | null;
     irrAfterTaxPct: number | null;
+    /** Total positive investor distributions ÷ total contributed capital. */
     equityMultiple: number | null;
     totalRoiPct: number | null;
     totalCashFlow: number;
+    totalDistributions: number;
+    contributedCapital: number;
     appreciationGain: number;
     principalPaydown: number;
     endingEquity: number;
     exit: ExitResult;
+    /** Explicitly-labelled holding-period exits (3 / 5 / 10 / 35 years). */
+    exitScenarios: ExitScenario[];
   };
 
   sensitivity: {
+    /** Canonical stress set — each row re-runs the engine end to end. */
+    scenarios: StressScenarioResult[];
     rent: ScenarioResult[];
     expense: ScenarioResult[];
     debt: {
@@ -537,6 +544,7 @@ export interface UnderwritingResult {
       loanTerm: DebtSensitivityRow[];
     };
   };
+
 
   score: DealScore;
   flags: GuardrailFlag[];
