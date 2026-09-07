@@ -735,7 +735,10 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     debtYieldPct: debt.loanAmount > 0 ? (noi / debt.loanAmount) * 100 : null,
     grm: base.gpr > 0 ? i.purchasePrice / base.gpr : null,
     ltvPct: i.purchasePrice > 0 ? (debt.loanAmount / i.purchasePrice) * 100 : null,
+    ltcPct: cap.totalProjectCost > 0 ? (debt.loanAmount / cap.totalProjectCost) * 100 : null,
+    equitySharePct: cap.totalProjectCost > 0 ? (cap.investorEquity / cap.totalProjectCost) * 100 : null,
     loanToArvPct: i.arv && i.arv > 0 ? (debt.loanAmount / i.arv) * 100 : null,
+
     expenseRatioPct: base.egi > 0 ? (base.totalOperating / base.egi) * 100 : null,
     breakEvenOccupancyPct: solveBreakEvenOccupancy(i, debt.annualDebtService),
     breakEvenRentMonthly: solveBreakEvenRent(i, debt.annualDebtService),
