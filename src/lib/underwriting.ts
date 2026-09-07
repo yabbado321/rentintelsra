@@ -338,6 +338,52 @@ export interface ScenarioResult {
   capRatePct: number | null;
 }
 
+/**
+ * A stress scenario carries the full income statement so the report can show
+ * gross rent → vacancy → EGI → OpEx → NOI → debt service → cash flow → DSCR.
+ */
+export interface StressScenarioResult extends ScenarioResult {
+  key: string;
+  group: "rent" | "vacancy" | "opex" | "rate" | "management";
+  grossPotentialRent: number;
+  otherIncome: number;
+  vacancyLoss: number;
+  effectiveGrossIncome: number;
+  operatingExpenses: number;
+  debtService: number;
+  capexReserve: number;
+  cashInvested: number;
+  deltaCashFlow: number;
+  deltaDscr: number | null;
+  breakEvenOccupancyPct: number | null;
+  /** Cash flow ≥ 0 and DSCR ≥ 1.20. */
+  pass: boolean;
+}
+
+/** Exit outcome for one explicitly-labelled holding period. */
+export interface ExitScenario {
+  holdYears: number;
+  label: string;
+  method: "appreciation" | "exit-cap";
+  finalYearNoi: number;
+  propertyValue: number;
+  grossSalePrice: number;
+  sellingCosts: number;
+  loanPayoff: number;
+  netProceedsPreTax: number;
+  capitalGainsTax: number;
+  depreciationRecaptureTax: number;
+  netProceedsAfterTax: number;
+  cumulativeCashFlow: number;
+  totalDistributions: number;
+  contributedCapital: number;
+  equityMultiple: number | null;
+  irrPreTaxPct: number | null;
+  irrAfterTaxPct: number | null;
+  annualizedReturnPct: number | null;
+}
+
+
 export interface DebtSensitivityRow {
   label: string;
   monthlyPayment: number;
@@ -473,16 +519,23 @@ export interface UnderwritingResult {
     afterTaxCashflowStream: number[];
     irrPreTaxPct: number | null;
     irrAfterTaxPct: number | null;
+    /** Total positive investor distributions ÷ total contributed capital. */
     equityMultiple: number | null;
     totalRoiPct: number | null;
     totalCashFlow: number;
+    totalDistributions: number;
+    contributedCapital: number;
     appreciationGain: number;
     principalPaydown: number;
     endingEquity: number;
     exit: ExitResult;
+    /** Explicitly-labelled holding-period exits (3 / 5 / 10 / 35 years). */
+    exitScenarios: ExitScenario[];
   };
 
   sensitivity: {
+    /** Canonical stress set — each row re-runs the engine end to end. */
+    scenarios: StressScenarioResult[];
     rent: ScenarioResult[];
     expense: ScenarioResult[];
     debt: {
@@ -491,6 +544,7 @@ export interface UnderwritingResult {
       loanTerm: DebtSensitivityRow[];
     };
   };
+
 
   score: DealScore;
   flags: GuardrailFlag[];
@@ -579,18 +633,81 @@ function debtFor(i: UnderwritingInputs, overrides: { downPaymentPct?: number; in
   };
 }
 
+/**
+ * Sources & uses of capital. This is the ONLY place project cost and investor
+ * equity are defined. Every screen, the Deal Score and the PDF read from here.
+ *
+ *   Total Project Cost = purchase + closing + points + lender fees + rehab
+ *                      + rehab contingency + holding + inspection + appraisal
+ *                      + other acquisition costs − seller credits
+ *   Investor Equity ("cash invested") = Total Project Cost − Loan Amount
+ *   LTC = Loan Amount / Total Project Cost
+ */
 function capitalFor(i: UnderwritingInputs, downPaymentPct?: number) {
   const downPct = downPaymentPct ?? i.downPaymentPct;
   const downPayment = i.purchasePrice * (downPct / 100);
-  const closingCosts = i.purchasePrice * (i.closingCostPct / 100);
   const loanAmount = Math.max(0, i.purchasePrice * (1 - downPct / 100));
+  const closingCosts = i.purchasePrice * (i.closingCostPct / 100);
+  const rehab = i.rehabBudget || 0;
+  const rehabContingency = rehab * ((i.rehabContingencyPct ?? 0) / 100);
   const points = ((i.pointsPct || 0) / 100) * loanAmount;
-  const otherAcq = i.otherAcquisitionCosts || 0;
-  const credits = i.sellerCredits || 0;
-  const cashInvested = Math.max(0, downPayment + closingCosts + i.rehabBudget + points + otherAcq - credits);
-  const allInCost = i.purchasePrice + i.rehabBudget + closingCosts + points + otherAcq - credits;
-  return { downPayment, closingCosts, points, otherAcquisitionCosts: otherAcq, sellerCredits: credits, cashInvested, allInCost, loanAmount };
+  const loanFees =
+    i.loanFees !== undefined ? i.loanFees : ((i.loanFeesPct ?? 0) / 100) * loanAmount;
+  const financingCosts = points + loanFees;
+  const monthlyPI = monthlyPayment(loanAmount, i.interestRatePct, i.loanTermYears);
+  const holdingCosts =
+    i.holdingCosts !== undefined ? i.holdingCosts : monthlyPI * (i.holdingMonths ?? 0);
+  const inspection = i.inspectionFee ?? 0;
+  const appraisal = i.appraisalFee ?? 0;
+  const otherAcquisitionCosts = i.otherAcquisitionCosts || 0;
+  const sellerCredits = i.sellerCredits || 0;
+
+  const uses = [
+    { key: "purchase", label: "Purchase Price", amount: i.purchasePrice, estimated: false },
+    { key: "closing", label: `Closing Costs (${i.closingCostPct}%)`, amount: closingCosts, estimated: true },
+    { key: "points", label: "Loan Points", amount: points, estimated: false },
+    { key: "loanFees", label: "Lender / Origination Fees", amount: loanFees, estimated: i.loanFees === undefined },
+    { key: "rehab", label: "Rehab / CapEx Scope", amount: rehab, estimated: false },
+    { key: "contingency", label: `Rehab Contingency (${i.rehabContingencyPct ?? 0}%)`, amount: rehabContingency, estimated: true },
+    { key: "holding", label: "Holding / Carry Costs", amount: holdingCosts, estimated: i.holdingCosts === undefined },
+    { key: "inspection", label: "Inspection", amount: inspection, estimated: true },
+    { key: "appraisal", label: "Appraisal", amount: appraisal, estimated: true },
+    { key: "other", label: "Other Acquisition Costs", amount: otherAcquisitionCosts, estimated: false },
+    { key: "credits", label: "Seller Credits", amount: -sellerCredits, estimated: false },
+  ].filter((u) => u.amount !== 0);
+
+  const totalProjectCost = uses.reduce((a, u) => a + u.amount, 0);
+  const investorEquity = Math.max(0, totalProjectCost - loanAmount);
+  const sources = [
+    { key: "loan", label: "Senior Debt", amount: loanAmount, sharePct: totalProjectCost > 0 ? (loanAmount / totalProjectCost) * 100 : 0 },
+    { key: "equity", label: "Investor Equity (Cash Invested)", amount: investorEquity, sharePct: totalProjectCost > 0 ? (investorEquity / totalProjectCost) * 100 : 0 },
+  ];
+
+  return {
+    downPayment,
+    closingCosts,
+    rehab,
+    rehabContingency,
+    points,
+    loanFees,
+    financingCosts,
+    holdingCosts,
+    inspection,
+    appraisal,
+    otherAcquisitionCosts,
+    sellerCredits,
+    loanAmount,
+    totalProjectCost,
+    investorEquity,
+    /** Alias — the single definition of cash invested. */
+    cashInvested: investorEquity,
+    /** Alias — total project cost is the all-in cost basis. */
+    allInCost: totalProjectCost,
+    uses,
+    sources,
+  };
 }
+
 
 /** Solve break-even occupancy (income covers opex + debt service) by bisection. */
 function solveBreakEvenOccupancy(i: UnderwritingInputs, annualDebtService: number): number | null {
@@ -641,6 +758,115 @@ function scenario(
   };
 }
 
+/**
+ * Canonical stress scenario. Re-runs the full engine on modified inputs:
+ * gross rent → vacancy → EGI → OpEx → NOI → debt service → cash flow → DSCR.
+ * Nothing is approximated and NOI is never manipulated directly.
+ */
+function stressScenario(
+  key: string,
+  group: StressScenarioResult["group"],
+  label: string,
+  baseInputs: UnderwritingInputs,
+  overrides: Partial<UnderwritingInputs>,
+  baseline: { cashFlow: number; dscr: number | null },
+): StressScenarioResult {
+  const i: UnderwritingInputs = { ...baseInputs, ...overrides };
+  const s = incomeStatement(i);
+  const d = debtFor(i);
+  const c = capitalFor(i);
+  const cf = s.noi - d.annualDebtService - s.capex;
+  const dscr = d.annualDebtService > 0 ? s.noi / d.annualDebtService : null;
+  return {
+    key,
+    group,
+    label,
+    grossPotentialRent: s.gpr,
+    otherIncome: s.otherIncome,
+    vacancyLoss: s.vacancyLoss,
+    effectiveGrossIncome: s.egi,
+    operatingExpenses: s.totalOperating,
+    noi: s.noi,
+    debtService: d.annualDebtService,
+    capexReserve: s.capex,
+    annualCashFlow: cf,
+    monthlyCashFlow: cf / 12,
+    dscr,
+    cashOnCashPct: c.cashInvested > 0 ? (cf / c.cashInvested) * 100 : null,
+    capRatePct: i.purchasePrice > 0 ? (s.noi / i.purchasePrice) * 100 : null,
+    cashInvested: c.cashInvested,
+    deltaCashFlow: cf - baseline.cashFlow,
+    deltaDscr: dscr !== null && baseline.dscr !== null ? dscr - baseline.dscr : null,
+    breakEvenOccupancyPct: solveBreakEvenOccupancy(i, d.annualDebtService),
+    pass: cf >= 0 && dscr !== null && dscr >= 1.2,
+  };
+}
+
+/**
+ * Scales every operating expense input by a multiplier. Returns real input
+ * overrides (not a shortcut applied to NOI) so the whole chain — including
+ * break-even occupancy and expense ratio — recalculates consistently.
+ * CapEx reserve sits below NOI and is deliberately left untouched.
+ */
+function scaleOperatingExpenses(i: UnderwritingInputs, m: number): Partial<UnderwritingInputs> {
+  const s = (f: FlexAmount): FlexAmount => ({ ...f, value: f.value * m });
+  const scaleMap = (o?: Record<string, number | undefined>) => {
+    if (!o) return o;
+    const out: Record<string, number | undefined> = {};
+    for (const [k, v] of Object.entries(o)) out[k] = v === undefined ? undefined : v * m;
+    return out;
+  };
+  return {
+    propertyTaxes: s(i.propertyTaxes),
+    insurance: s(i.insurance),
+    management: s(i.management),
+    maintenance: s(i.maintenance),
+    hoaMonthly: (i.hoaMonthly || 0) * m,
+    ownerUtilitiesMonthly: (i.ownerUtilitiesMonthly || 0) * m,
+    otherOperating: scaleMap(i.otherOperating) as UnderwritingInputs["otherOperating"],
+  };
+}
+
+/** The required stress set — every row re-runs the engine end to end. */
+
+function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
+  const b = incomeStatement(i);
+  const bd = debtFor(i);
+  const baseCf = b.noi - bd.annualDebtService - b.capex;
+  const baseline = {
+    cashFlow: baseCf,
+    dscr: bd.annualDebtService > 0 ? b.noi / bd.annualDebtService : null,
+  };
+  const rentAt = (dropPct: number) => i.monthlyBaseRent * (1 - dropPct / 100);
+  const mgmtIsZero =
+    !i.management || (i.management.mode === "pct" ? i.management.value === 0 : i.management.value === 0);
+
+  const rows: StressScenarioResult[] = [
+    stressScenario("base", "rent", "Base case (your inputs)", i, {}, baseline),
+    stressScenario("rent-5", "rent", "Rent −5%", i, { monthlyBaseRent: rentAt(5) }, baseline),
+    stressScenario("rent-10", "rent", "Rent −10%", i, { monthlyBaseRent: rentAt(10) }, baseline),
+    stressScenario("rent-15", "rent", "Rent −15%", i, { monthlyBaseRent: rentAt(15) }, baseline),
+    stressScenario("vac-10", "vacancy", "Vacancy 10%", i, { vacancyPct: 10 }, baseline),
+    stressScenario("vac-15", "vacancy", "Vacancy 15%", i, { vacancyPct: 15 }, baseline),
+    stressScenario("vac-20", "vacancy", "Vacancy 20%", i, { vacancyPct: 20 }, baseline),
+    stressScenario("opex-10", "opex", "Operating expenses +10%", i, scaleOperatingExpenses(i, 1.1), baseline),
+    stressScenario("opex-20", "opex", "Operating expenses +20%", i, scaleOperatingExpenses(i, 1.2), baseline),
+
+    stressScenario("rate+1", "rate", `Interest rate +1.00% (${(i.interestRatePct + 1).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 1 }, baseline),
+    stressScenario("rate+2", "rate", `Interest rate +2.00% (${(i.interestRatePct + 2).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 2 }, baseline),
+    stressScenario(
+      "mgmt",
+      "management",
+      mgmtIsZero ? "Third-party management added (8% of EGI)" : "Management fee raised to 10% of EGI",
+      i,
+      { management: pct(mgmtIsZero ? 8 : 10, true) },
+      baseline,
+    ),
+  ];
+  return rows;
+}
+
+
 /* ==========================================================================
  * Main entry point
  * ========================================================================== */
@@ -672,7 +898,10 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     debtYieldPct: debt.loanAmount > 0 ? (noi / debt.loanAmount) * 100 : null,
     grm: base.gpr > 0 ? i.purchasePrice / base.gpr : null,
     ltvPct: i.purchasePrice > 0 ? (debt.loanAmount / i.purchasePrice) * 100 : null,
+    ltcPct: cap.totalProjectCost > 0 ? (debt.loanAmount / cap.totalProjectCost) * 100 : null,
+    equitySharePct: cap.totalProjectCost > 0 ? (cap.investorEquity / cap.totalProjectCost) * 100 : null,
     loanToArvPct: i.arv && i.arv > 0 ? (debt.loanAmount / i.arv) * 100 : null,
+
     expenseRatioPct: base.egi > 0 ? (base.totalOperating / base.egi) * 100 : null,
     breakEvenOccupancyPct: solveBreakEvenOccupancy(i, debt.annualDebtService),
     breakEvenRentMonthly: solveBreakEvenRent(i, debt.annualDebtService),
@@ -731,7 +960,9 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
   };
 
   const sensitivity: UnderwritingResult["sensitivity"] = {
+    scenarios: buildStressScenarios(i),
     rent: rentSensitivity,
+
     expense: expenseSensitivity,
     debt: {
       interestRate: [-1, -0.5, 0, 0.5, 1, 2].map((d) =>
@@ -757,14 +988,21 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     { label: "Cash Flow Before CapEx", value: cfBeforeCapex, op: "=" },
     { label: "CapEx Reserve", value: base.capex, op: "-" },
     { label: "Cash Flow After CapEx", value: cfAfterCapex, op: "=" },
-    { label: "Down Payment", value: cap.downPayment, op: "" },
-    { label: "Closing Costs", value: cap.closingCosts, op: "+" },
-    { label: "Rehab Budget", value: i.rehabBudget, op: "+" },
-    { label: "Points / Financing Costs", value: cap.points, op: "+" },
-    { label: "Other Acquisition Costs", value: cap.otherAcquisitionCosts, op: "+" },
-    { label: "Seller Credits", value: cap.sellerCredits, op: "-" },
-    { label: "Total Cash Invested", value: cap.cashInvested, op: "=" },
+    { label: "Purchase Price", value: i.purchasePrice, op: "" },
+
+    ...cap.uses
+      .filter((u) => u.key !== "purchase")
+      .map((u) => ({
+        label: u.label + (u.estimated ? " (Estimated)" : ""),
+        value: Math.abs(u.amount),
+        op: (u.amount < 0 ? "-" : "+") as "+" | "-",
+        indent: true,
+      })),
+    { label: "Total Project Cost", value: cap.totalProjectCost, op: "=" },
+    { label: "Less Loan Amount", value: cap.loanAmount, op: "-" },
+    { label: "Investor Equity / Cash Invested", value: cap.investorEquity, op: "=" },
   ];
+
 
   return {
     inputs: i,
