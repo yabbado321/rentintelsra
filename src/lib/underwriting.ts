@@ -989,13 +989,20 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     { label: "CapEx Reserve", value: base.capex, op: "-" },
     { label: "Cash Flow After CapEx", value: cfAfterCapex, op: "=" },
     { label: "Down Payment", value: cap.downPayment, op: "" },
-    { label: "Closing Costs", value: cap.closingCosts, op: "+" },
-    { label: "Rehab Budget", value: i.rehabBudget, op: "+" },
-    { label: "Points / Financing Costs", value: cap.points, op: "+" },
-    { label: "Other Acquisition Costs", value: cap.otherAcquisitionCosts, op: "+" },
-    { label: "Seller Credits", value: cap.sellerCredits, op: "-" },
-    { label: "Total Cash Invested", value: cap.cashInvested, op: "=" },
+    { label: "Purchase Price", value: i.purchasePrice, op: "" },
+    ...cap.uses
+      .filter((u) => u.key !== "purchase")
+      .map((u) => ({
+        label: u.label + (u.estimated ? " (Estimated)" : ""),
+        value: Math.abs(u.amount),
+        op: (u.amount < 0 ? "-" : "+") as "+" | "-",
+        indent: true,
+      })),
+    { label: "Total Project Cost", value: cap.totalProjectCost, op: "=" },
+    { label: "Less Loan Amount", value: cap.loanAmount, op: "-" },
+    { label: "Investor Equity / Cash Invested", value: cap.investorEquity, op: "=" },
   ];
+
 
   return {
     inputs: i,
