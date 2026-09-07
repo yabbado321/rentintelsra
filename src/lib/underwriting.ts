@@ -704,6 +704,88 @@ function scenario(
   };
 }
 
+/**
+ * Canonical stress scenario. Re-runs the full engine on modified inputs:
+ * gross rent → vacancy → EGI → OpEx → NOI → debt service → cash flow → DSCR.
+ * Nothing is approximated and NOI is never manipulated directly.
+ */
+function stressScenario(
+  key: string,
+  group: StressScenarioResult["group"],
+  label: string,
+  baseInputs: UnderwritingInputs,
+  overrides: Partial<UnderwritingInputs>,
+  baseline: { cashFlow: number; dscr: number | null },
+): StressScenarioResult {
+  const i: UnderwritingInputs = { ...baseInputs, ...overrides };
+  const s = incomeStatement(i);
+  const d = debtFor(i);
+  const c = capitalFor(i);
+  const cf = s.noi - d.annualDebtService - s.capex;
+  const dscr = d.annualDebtService > 0 ? s.noi / d.annualDebtService : null;
+  return {
+    key,
+    group,
+    label,
+    grossPotentialRent: s.gpr,
+    otherIncome: s.otherIncome,
+    vacancyLoss: s.vacancyLoss,
+    effectiveGrossIncome: s.egi,
+    operatingExpenses: s.totalOperating,
+    noi: s.noi,
+    debtService: d.annualDebtService,
+    capexReserve: s.capex,
+    annualCashFlow: cf,
+    monthlyCashFlow: cf / 12,
+    dscr,
+    cashOnCashPct: c.cashInvested > 0 ? (cf / c.cashInvested) * 100 : null,
+    capRatePct: i.purchasePrice > 0 ? (s.noi / i.purchasePrice) * 100 : null,
+    cashInvested: c.cashInvested,
+    deltaCashFlow: cf - baseline.cashFlow,
+    deltaDscr: dscr !== null && baseline.dscr !== null ? dscr - baseline.dscr : null,
+    breakEvenOccupancyPct: solveBreakEvenOccupancy(i, d.annualDebtService),
+    pass: cf >= 0 && dscr !== null && dscr >= 1.2,
+  };
+}
+
+/** The required stress set — every row re-runs the engine end to end. */
+function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
+  const b = incomeStatement(i);
+  const bd = debtFor(i);
+  const baseCf = b.noi - bd.annualDebtService - b.capex;
+  const baseline = {
+    cashFlow: baseCf,
+    dscr: bd.annualDebtService > 0 ? b.noi / bd.annualDebtService : null,
+  };
+  const rentAt = (dropPct: number) => i.monthlyBaseRent * (1 - dropPct / 100);
+  const mgmtIsZero =
+    !i.management || (i.management.mode === "pct" ? i.management.value === 0 : i.management.value === 0);
+
+  const rows: StressScenarioResult[] = [
+    stressScenario("base", "rent", "Base case (your inputs)", i, {}, baseline),
+    stressScenario("rent-5", "rent", "Rent −5%", i, { monthlyBaseRent: rentAt(5) }, baseline),
+    stressScenario("rent-10", "rent", "Rent −10%", i, { monthlyBaseRent: rentAt(10) }, baseline),
+    stressScenario("rent-15", "rent", "Rent −15%", i, { monthlyBaseRent: rentAt(15) }, baseline),
+    stressScenario("vac-10", "vacancy", "Vacancy 10%", i, { vacancyPct: 10 }, baseline),
+    stressScenario("vac-15", "vacancy", "Vacancy 15%", i, { vacancyPct: 15 }, baseline),
+    stressScenario("vac-20", "vacancy", "Vacancy 20%", i, { vacancyPct: 20 }, baseline),
+    stressScenario("opex-10", "opex", "Operating expenses +10%", i, { __expenseMultiplier: 1.1 } as Partial<UnderwritingInputs>, baseline),
+    stressScenario("opex-20", "opex", "Operating expenses +20%", i, { __expenseMultiplier: 1.2 } as Partial<UnderwritingInputs>, baseline),
+    stressScenario("rate+1", "rate", `Interest rate +1.00% (${(i.interestRatePct + 1).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 1 }, baseline),
+    stressScenario("rate+2", "rate", `Interest rate +2.00% (${(i.interestRatePct + 2).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 2 }, baseline),
+    stressScenario(
+      "mgmt",
+      "management",
+      mgmtIsZero ? "Third-party management added (8% of EGI)" : "Management fee raised to 10% of EGI",
+      i,
+      { management: pct(mgmtIsZero ? 8 : 10, true) },
+      baseline,
+    ),
+  ];
+  return rows;
+}
+
+
 /* ==========================================================================
  * Main entry point
  * ========================================================================== */
