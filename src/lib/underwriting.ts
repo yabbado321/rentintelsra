@@ -101,11 +101,30 @@ export interface UnderwritingInputs {
   /* --- Income --------------------------------------------------------- */
   /** Total monthly base rent across all units (or per-unit x units, resolved by caller). */
   monthlyBaseRent: number;
+  /**
+   * Income classification, monthly dollars.
+   *
+   * BEHAVIOR NOTE (see incomeStatement()): vacancy/credit loss is applied
+   * only to `monthlyBaseRent` plus `parking` and `petRent`, because those
+   * are tied to whether a specific unit is occupied. `laundry`, `storage`
+   * and `other` are treated as non-occupancy-linked (common-area / building
+   * income that doesn't scale 1:1 with unit vacancy) and vacancy is NOT
+   * applied to them. Prior to this change, vacancy was applied to the sum
+   * of ALL otherIncome fields — this is a deliberate, documented change to
+   * EGI/NOI for any deal that uses laundry/storage/other income. Reclassify
+   * a field by moving it between the two groups in incomeStatement() if the
+   * product decision differs.
+   */
   otherIncome?: {
+    /** Occupancy-linked: vacancy applies. */
     parking?: number;
+    /** Non-occupancy-linked: vacancy does not apply. */
     laundry?: number;
+    /** Occupancy-linked: vacancy applies. */
     petRent?: number;
+    /** Non-occupancy-linked: vacancy does not apply. */
     storage?: number;
+    /** Non-occupancy-linked: vacancy does not apply. */
     other?: number;
   };
 
@@ -286,10 +305,14 @@ export function irr(cashflows: number[]): number | null {
 export interface ExpenseLine {
   key: string;
   label: string;
+  /** Explicit calculation basis — never an ambiguous "%". */
+  basis: "pct-of-value" | "pct-of-egi" | "monthly-dollars" | "annual-dollars";
   annual: number;
   estimated: boolean;
   /** false for CapEx reserve — excluded from NOI. */
   inNOI: boolean;
+  /** true only for the CapEx reserve line — explicit "below NOI" marker for report code. */
+  belowNoi: boolean;
 }
 
 export interface YearRow {
@@ -344,7 +367,7 @@ export interface ScenarioResult {
  */
 export interface StressScenarioResult extends ScenarioResult {
   key: string;
-  group: "rent" | "vacancy" | "opex" | "rate" | "management";
+  group: "rent" | "vacancy" | "opex" | "rate" | "management" | "rehab";
   grossPotentialRent: number;
   otherIncome: number;
   vacancyLoss: number;
@@ -549,6 +572,8 @@ export interface UnderwritingResult {
   score: DealScore;
   flags: GuardrailFlag[];
   reconciliation: ReconciliationLine[];
+  /** Populated when computeUnderwriting is called in validation mode and a reconciliation check fails. */
+  validationErrors: string[];
 }
 
 /* ==========================================================================
@@ -588,10 +613,20 @@ function incomeStatement(
   const em = opts.expenseMultiplier ?? 1;
 
   const gpr = monthlyRent * 12;
-  const otherIncomeMonthly = sum(i.otherIncome);
+  // Occupancy-linked other income: scales with whether a unit is occupied,
+  // so vacancy/credit loss applies to it exactly like base rent.
+  const occupancyLinkedOtherIncomeMonthly = (i.otherIncome?.parking || 0) + (i.otherIncome?.petRent || 0);
+  // Non-occupancy-linked other income: building/common-area income that
+  // does not fall to zero when a unit sits vacant, so vacancy is not
+  // applied to it.
+  const nonOccupancyLinkedOtherIncomeMonthly =
+    (i.otherIncome?.laundry || 0) + (i.otherIncome?.storage || 0) + (i.otherIncome?.other || 0);
+  const otherIncomeMonthly = occupancyLinkedOtherIncomeMonthly + nonOccupancyLinkedOtherIncomeMonthly;
   const otherIncome = otherIncomeMonthly * 12;
-  // Vacancy/credit loss applies to scheduled rent and to occupancy-linked income.
-  const vacancyLoss = (gpr + otherIncome) * (vacancyPct / 100);
+  const occupancyLinkedOtherIncome = occupancyLinkedOtherIncomeMonthly * 12;
+  // Vacancy/credit loss applies to scheduled rent and occupancy-linked other
+  // income only. Non-occupancy-linked other income passes straight to EGI.
+  const vacancyLoss = (gpr + occupancyLinkedOtherIncome) * (vacancyPct / 100);
   const egi = gpr + otherIncome - vacancyLoss;
 
   const valueBasis = i.purchasePrice;
@@ -602,14 +637,14 @@ function incomeStatement(
   const capexRes = resolveFlex(i.capexReserve, egi);
 
   const lines: ExpenseLine[] = [
-    { key: "taxes", label: "Property Taxes", annual: taxes.annual * em, estimated: taxes.estimated, inNOI: true },
-    { key: "insurance", label: "Insurance", annual: ins.annual * em, estimated: ins.estimated, inNOI: true },
-    { key: "hoa", label: "HOA", annual: (i.hoaMonthly || 0) * 12 * em, estimated: false, inNOI: true },
-    { key: "management", label: "Property Management", annual: mgmt.annual * em, estimated: mgmt.estimated, inNOI: true },
-    { key: "maintenance", label: "Maintenance & Repairs", annual: maint.annual * em, estimated: maint.estimated, inNOI: true },
-    { key: "utilities", label: "Owner-Paid Utilities", annual: (i.ownerUtilitiesMonthly || 0) * 12 * em, estimated: false, inNOI: true },
-    { key: "other", label: "Other Recurring Operating", annual: sum(i.otherOperating) * 12 * em, estimated: false, inNOI: true },
-    { key: "capex", label: "CapEx Reserve (below NOI)", annual: capexRes.annual * em, estimated: capexRes.estimated, inNOI: false },
+    { key: "taxes", label: "Property Taxes", basis: (i.propertyTaxes.mode === "pct" ? "pct-of-value" : "annual-dollars") as ExpenseLine["basis"], annual: taxes.annual * em, estimated: taxes.estimated, inNOI: true, belowNoi: false },
+    { key: "insurance", label: "Insurance", basis: (i.insurance.mode === "pct" ? "pct-of-value" : "annual-dollars") as ExpenseLine["basis"], annual: ins.annual * em, estimated: ins.estimated, inNOI: true, belowNoi: false },
+    { key: "hoa", label: "HOA", basis: "monthly-dollars" as ExpenseLine["basis"], annual: (i.hoaMonthly || 0) * 12 * em, estimated: false, inNOI: true, belowNoi: false },
+    { key: "management", label: "Property Management", basis: (i.management.mode === "pct" ? "pct-of-egi" : "annual-dollars") as ExpenseLine["basis"], annual: mgmt.annual * em, estimated: mgmt.estimated, inNOI: true, belowNoi: false },
+    { key: "maintenance", label: "Maintenance & Repairs", basis: (i.maintenance.mode === "pct" ? "pct-of-egi" : "annual-dollars") as ExpenseLine["basis"], annual: maint.annual * em, estimated: maint.estimated, inNOI: true, belowNoi: false },
+    { key: "utilities", label: "Owner-Paid Utilities", basis: "monthly-dollars" as ExpenseLine["basis"], annual: (i.ownerUtilitiesMonthly || 0) * 12 * em, estimated: false, inNOI: true, belowNoi: false },
+    { key: "other", label: "Other Recurring Operating", basis: "monthly-dollars" as ExpenseLine["basis"], annual: sum(i.otherOperating) * 12 * em, estimated: false, inNOI: true, belowNoi: false },
+    { key: "capex", label: "CapEx Reserve (below NOI)", basis: (i.capexReserve.mode === "pct" ? "pct-of-egi" : "annual-dollars") as ExpenseLine["basis"], annual: capexRes.annual * em, estimated: capexRes.estimated, inNOI: false, belowNoi: true },
   ].filter((l) => l.annual !== 0 || l.key === "capex");
 
   const totalOperating = lines.filter((l) => l.inNOI).reduce((a, l) => a + l.annual, 0);
@@ -862,6 +897,17 @@ function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
       { management: pct(mgmtIsZero ? 8 : 10, true) },
       baseline,
     ),
+    // Rehab overrun affects cash invested (via capitalFor), not the income
+    // statement — stressScenario() recomputes capitalFor() on the overridden
+    // inputs, so cashInvested/cashOnCash correctly reflect the larger basis.
+    stressScenario(
+      "rehab+25",
+      "rehab",
+      `Rehab cost overrun +25% (construction overruns of 15–30% are common)`,
+      i,
+      { rehabBudget: i.rehabBudget * 1.25 },
+      baseline,
+    ),
   ];
   return rows;
 }
@@ -871,8 +917,47 @@ function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
  * Main entry point
  * ========================================================================== */
 
+/**
+ * Validates raw inputs before any calculation runs. Returns human-readable
+ * errors for nonsensical inputs (spec §23) rather than silently producing
+ * bad results. computeUnderwriting() still computes a best-effort result
+ * even when validation fails (callers may want to show the error alongside
+ * partial output), but every caller MUST check inputValidationErrors before
+ * treating the result as trustworthy.
+ */
+export function validateInputs(i: UnderwritingInputs): string[] {
+  const errors: string[] = [];
+  if (i.purchasePrice < 0) errors.push("Purchase price cannot be negative.");
+  if (i.monthlyBaseRent < 0) errors.push("Monthly base rent cannot be negative.");
+  if (i.vacancyPct < 0 || i.vacancyPct > 100) errors.push("Vacancy % must be between 0 and 100.");
+  if (i.interestRatePct < 0) errors.push("Interest rate cannot be negative.");
+  if (i.downPaymentPct < 0 || i.downPaymentPct >= 100) errors.push("Down payment % must be between 0 and 100 (exclusive of 100).");
+  if (i.loanTermYears <= 0) errors.push("Loan term must be a positive number of years.");
+  if (i.holdYears <= 0) errors.push("Holding period must be a positive number of years.");
+  if (i.rehabBudget < 0) errors.push("Rehab budget cannot be negative.");
+  if (i.closingCostPct < 0) errors.push("Closing cost % cannot be negative.");
+  if (i.exitCapRatePct !== undefined && i.exitCapRatePct <= 0) errors.push("Exit cap rate must be greater than 0 when provided.");
+  if (i.marginalTaxRatePct !== undefined && (i.marginalTaxRatePct < 0 || i.marginalTaxRatePct > 100)) {
+    errors.push("Marginal tax rate must be between 0 and 100.");
+  }
+  if (i.capitalGainsRatePct !== undefined && (i.capitalGainsRatePct < 0 || i.capitalGainsRatePct > 100)) {
+    errors.push("Capital gains rate must be between 0 and 100.");
+  }
+  const checkFlex = (f: FlexAmount | undefined, label: string) => {
+    if (!f) return;
+    if (f.value < 0) errors.push(`${label} cannot be negative.`);
+  };
+  checkFlex(i.propertyTaxes, "Property taxes");
+  checkFlex(i.insurance, "Insurance");
+  checkFlex(i.management, "Management");
+  checkFlex(i.maintenance, "Maintenance");
+  checkFlex(i.capexReserve, "CapEx reserve");
+  return errors;
+}
+
 export function computeUnderwriting(raw: Partial<UnderwritingInputs>): UnderwritingResult {
   const i: UnderwritingInputs = { ...DEFAULT_INPUTS, ...raw };
+  const inputErrors = validateInputs(i);
 
   const base = incomeStatement(i);
   const debt = debtFor(i);
@@ -1036,13 +1121,24 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
       downPayment: cap.downPayment,
       closingCosts: cap.closingCosts,
       rehab: i.rehabBudget,
+      rehabContingency: cap.rehabContingency,
       points: cap.points,
+      loanFees: cap.loanFees,
+      financingCosts: cap.financingCosts,
+      holdingCosts: cap.holdingCosts,
+      inspection: cap.inspection,
+      appraisal: cap.appraisal,
       otherAcquisitionCosts: cap.otherAcquisitionCosts,
       sellerCredits: cap.sellerCredits,
+      loanAmount: cap.loanAmount,
+      totalProjectCost: cap.totalProjectCost,
+      investorEquity: cap.investorEquity,
       cashInvested: cap.cashInvested,
       allInCost: cap.allInCost,
       allInPerUnit: units ? cap.allInCost / units : null,
       allInPerSqFt: sqft ? cap.allInCost / sqft : null,
+      uses: cap.uses,
+      sources: cap.sources,
     },
     metrics,
     projection,
@@ -1050,19 +1146,113 @@ export function computeUnderwriting(raw: Partial<UnderwritingInputs>): Underwrit
     score,
     flags,
     reconciliation,
+    validationErrors: [
+      ...inputErrors,
+      ...validateReconciliation(i, { base, debt, cap, metrics, noi, cfBeforeCapex, cfAfterCapex }),
+    ],
   };
+}
+
+/* ==========================================================================
+ * Reconciliation validation (spec §21) — every identity is asserted, not
+ * merely displayed. A failure beyond floating-point tolerance is surfaced
+ * as a validation error rather than silently rendered.
+ * ========================================================================== */
+
+const EPS = 0.01; // one cent
+
+function approxEqual(a: number, b: number, eps = EPS): boolean {
+  return Math.abs(a - b) <= eps;
+}
+
+function validateReconciliation(
+  i: UnderwritingInputs,
+  ctx: {
+    base: CoreSnapshot;
+    debt: ReturnType<typeof debtFor>;
+    cap: ReturnType<typeof capitalFor>;
+    metrics: UnderwritingResult["metrics"];
+    noi: number;
+    cfBeforeCapex: number;
+    cfAfterCapex: number;
+  },
+): string[] {
+  const errors: string[] = [];
+  const { base, debt, cap, metrics, noi, cfBeforeCapex, cfAfterCapex } = ctx;
+
+  // GPR + Other Income - Vacancy = EGI
+  if (!approxEqual(base.gpr + base.otherIncome - base.vacancyLoss, base.egi)) {
+    errors.push("Income waterfall does not reconcile: GPR + Other Income - Vacancy ≠ EGI");
+  }
+  // EGI - OpEx = NOI
+  if (!approxEqual(base.egi - base.totalOperating, base.noi)) {
+    errors.push("EGI - Operating Expenses ≠ NOI");
+  }
+  // NOI - Debt Service = CF Before CapEx
+  if (!approxEqual(noi - debt.annualDebtService, cfBeforeCapex)) {
+    errors.push("NOI - Debt Service ≠ Cash Flow Before CapEx");
+  }
+  // CF Before CapEx - CapEx = CF After CapEx
+  if (!approxEqual(cfBeforeCapex - base.capex, cfAfterCapex)) {
+    errors.push("Cash Flow Before CapEx - CapEx Reserve ≠ Cash Flow After CapEx");
+  }
+  // Sum of uses = Total Project Cost
+  const usesSum = cap.uses.reduce((a, u) => a + u.amount, 0);
+  if (!approxEqual(usesSum, cap.totalProjectCost)) {
+    errors.push("Sum of capital uses ≠ Total Project Cost");
+  }
+  // Loan + Investor Equity = Total Project Cost (only when equity isn't floored at 0
+  // by an over-levered/negative-cost edge case — flag that edge case explicitly instead).
+  if (cap.totalProjectCost - cap.loanAmount < -EPS) {
+    errors.push("Loan amount exceeds Total Project Cost — investor equity floored at 0; capital stack does not reconcile");
+  } else if (!approxEqual(cap.loanAmount + cap.investorEquity, cap.totalProjectCost)) {
+    errors.push("Loan Amount + Investor Equity ≠ Total Project Cost");
+  }
+  // LTC = Loan / Total Project Cost
+  if (metrics.ltcPct !== null && cap.totalProjectCost > 0) {
+    if (!approxEqual(metrics.ltcPct, (cap.loanAmount / cap.totalProjectCost) * 100, 0.05)) {
+      errors.push("LTC ≠ Loan Amount / Total Project Cost");
+    }
+  }
+  // LTV = Loan / Purchase Price
+  if (metrics.ltvPct !== null && i.purchasePrice > 0) {
+    if (!approxEqual(metrics.ltvPct, (debt.loanAmount / i.purchasePrice) * 100, 0.05)) {
+      errors.push("LTV ≠ Loan Amount / Purchase Price");
+    }
+  }
+  // DSCR = NOI / Debt Service
+  if (metrics.dscr !== null && debt.annualDebtService > 0) {
+    if (!approxEqual(metrics.dscr, noi / debt.annualDebtService, 0.001)) {
+      errors.push("DSCR ≠ NOI / Debt Service");
+    }
+  }
+  // Debt Yield = NOI / Loan Amount
+  if (metrics.debtYieldPct !== null && debt.loanAmount > 0) {
+    if (!approxEqual(metrics.debtYieldPct, (noi / debt.loanAmount) * 100, 0.05)) {
+      errors.push("Debt Yield ≠ NOI / Loan Amount");
+    }
+  }
+
+  return errors;
 }
 
 /* ==========================================================================
  * Long-term projection, exit and taxes
  * ========================================================================== */
 
-function buildProjection(
+/**
+ * Runs the year-by-year projection (income, debt, depreciation, exit) for an
+ * explicit holding period. Shared by the primary projection (i.holdYears)
+ * and every labelled exit scenario (3/5/10/35yr) so the debt schedule and
+ * the exit valuation ALWAYS use the same year count — no label/value
+ * mismatch between "Year 5 exit" and a schedule actually run for 10 years.
+ */
+function runProjectionForYears(
   i: UnderwritingInputs,
   cap: ReturnType<typeof capitalFor>,
   debt: ReturnType<typeof debtFor>,
-): UnderwritingResult["projection"] {
-  const years = Math.max(1, Math.round(i.holdYears));
+  years: number,
+): Omit<UnderwritingResult["projection"], "exitScenarios"> {
   const schedule = amortize(debt.loanAmount, i.interestRatePct, i.loanTermYears, years);
 
   const depreciableBasis = i.purchasePrice * (1 - (i.landAllocationPct ?? 20) / 100) + i.rehabBudget;
@@ -1139,9 +1329,24 @@ function buildProjection(
   const totalCashFlow = rows.reduce((a, r) => a + r.cashFlowAfterCapex, 0);
   const irrPre = irr(preTax);
   const irrPost = irr(afterTax);
-  const equityMultiple = cap.cashInvested > 0
-    ? (totalCashFlow + netProceedsPreTax) / cap.cashInvested
-    : null;
+
+  /**
+   * Equity multiple (spec §15): calculated DIRECTLY from investor cash
+   * flows, never derived from IRR. Any year where the investor cash flow
+   * is negative (deal requires a capital call) is treated as ADDITIONAL
+   * contributed capital, not a negative distribution — so a downside
+   * scenario with negative annual cash flow correctly increases the
+   * denominator instead of silently netting against distributions.
+   *   Total Positive Investor Distributions / Total Investor Capital Contributed
+   */
+  let contributedCapital = cap.cashInvested; // initial investment (always a contribution)
+  let totalDistributions = 0;
+  for (let idx = 1; idx < preTax.length; idx++) {
+    const cf = preTax[idx];
+    if (cf < 0) contributedCapital += -cf;
+    else totalDistributions += cf;
+  }
+  const equityMultiple = contributedCapital > 0 ? totalDistributions / contributedCapital : null;
 
   return {
     years: rows,
@@ -1152,6 +1357,8 @@ function buildProjection(
     equityMultiple,
     totalRoiPct: equityMultiple === null ? null : (equityMultiple - 1) * 100,
     totalCashFlow,
+    totalDistributions,
+    contributedCapital,
     appreciationGain: grossSalePrice - i.purchasePrice,
     principalPaydown: debt.loanAmount - last.loanBalance,
     endingEquity: last.equity,
@@ -1168,6 +1375,83 @@ function buildProjection(
       adjustedBasis,
     },
   };
+}
+
+/**
+ * Builds the primary projection (run for i.holdYears) plus the required set
+ * of explicitly-labelled exit scenarios (3 / 5 / 10 / 35 years — or fewer if
+ * the loan term is shorter). Every exit scenario reruns the FULL projection
+ * for its own holdYears — it never borrows a schedule computed for a
+ * different year count, so "Year 5 exit" always reflects amortization and
+ * appreciation actually compounded over exactly 5 years.
+ */
+function buildProjection(
+  i: UnderwritingInputs,
+  cap: ReturnType<typeof capitalFor>,
+  debt: ReturnType<typeof debtFor>,
+): UnderwritingResult["projection"] {
+  const primaryYears = Math.max(1, Math.round(i.holdYears));
+  const primary = runProjectionForYears(i, cap, debt, primaryYears);
+
+  const candidateYears = Array.from(new Set([3, 5, 10, 35, primaryYears])).sort((a, b) => a - b);
+  const exitScenarios: ExitScenario[] = candidateYears.map((years) => {
+    const label = years === primaryYears ? `Year ${years} exit (entered hold period)` : `Year ${years} exit`;
+    if (years === primaryYears) {
+      // Reuse the already-computed primary run so the label year and the
+      // calculated year can never diverge for the entered hold period.
+      const p = primary;
+      return {
+        holdYears: years,
+        label,
+        method: p.exit.method,
+        finalYearNoi: p.years[p.years.length - 1].noi,
+        propertyValue: p.years[p.years.length - 1].propertyValue,
+        grossSalePrice: p.exit.grossSalePrice,
+        sellingCosts: p.exit.sellingCosts,
+        loanPayoff: p.exit.loanPayoff,
+        netProceedsPreTax: p.exit.netProceedsPreTax,
+        capitalGainsTax: p.exit.capitalGainsTax,
+        depreciationRecaptureTax: p.exit.depreciationRecaptureTax,
+        netProceedsAfterTax: p.exit.netProceedsAfterTax,
+        cumulativeCashFlow: p.totalCashFlow,
+        totalDistributions: p.totalDistributions,
+        contributedCapital: p.contributedCapital,
+        equityMultiple: p.equityMultiple,
+        irrPreTaxPct: p.irrPreTaxPct,
+        irrAfterTaxPct: p.irrAfterTaxPct,
+        annualizedReturnPct: p.equityMultiple !== null && p.equityMultiple > 0
+          ? (Math.pow(p.equityMultiple, 1 / years) - 1) * 100
+          : null,
+      };
+    }
+    const p = runProjectionForYears(i, cap, debt, years);
+    const last = p.years[p.years.length - 1];
+    return {
+      holdYears: years,
+      label,
+      method: p.exit.method,
+      finalYearNoi: last.noi,
+      propertyValue: last.propertyValue,
+      grossSalePrice: p.exit.grossSalePrice,
+      sellingCosts: p.exit.sellingCosts,
+      loanPayoff: p.exit.loanPayoff,
+      netProceedsPreTax: p.exit.netProceedsPreTax,
+      capitalGainsTax: p.exit.capitalGainsTax,
+      depreciationRecaptureTax: p.exit.depreciationRecaptureTax,
+      netProceedsAfterTax: p.exit.netProceedsAfterTax,
+      cumulativeCashFlow: p.totalCashFlow,
+      totalDistributions: p.totalDistributions,
+      contributedCapital: p.contributedCapital,
+      equityMultiple: p.equityMultiple,
+      irrPreTaxPct: p.irrPreTaxPct,
+      irrAfterTaxPct: p.irrAfterTaxPct,
+      annualizedReturnPct: p.equityMultiple !== null && p.equityMultiple > 0
+        ? (Math.pow(p.equityMultiple, 1 / years) - 1) * 100
+        : null,
+    };
+  });
+
+  return { ...primary, exitScenarios };
 }
 
 /* ==========================================================================
