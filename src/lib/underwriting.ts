@@ -338,6 +338,52 @@ export interface ScenarioResult {
   capRatePct: number | null;
 }
 
+/**
+ * A stress scenario carries the full income statement so the report can show
+ * gross rent → vacancy → EGI → OpEx → NOI → debt service → cash flow → DSCR.
+ */
+export interface StressScenarioResult extends ScenarioResult {
+  key: string;
+  group: "rent" | "vacancy" | "opex" | "rate" | "management";
+  grossPotentialRent: number;
+  otherIncome: number;
+  vacancyLoss: number;
+  effectiveGrossIncome: number;
+  operatingExpenses: number;
+  debtService: number;
+  capexReserve: number;
+  cashInvested: number;
+  deltaCashFlow: number;
+  deltaDscr: number | null;
+  breakEvenOccupancyPct: number | null;
+  /** Cash flow ≥ 0 and DSCR ≥ 1.20. */
+  pass: boolean;
+}
+
+/** Exit outcome for one explicitly-labelled holding period. */
+export interface ExitScenario {
+  holdYears: number;
+  label: string;
+  method: "appreciation" | "exit-cap";
+  finalYearNoi: number;
+  propertyValue: number;
+  grossSalePrice: number;
+  sellingCosts: number;
+  loanPayoff: number;
+  netProceedsPreTax: number;
+  capitalGainsTax: number;
+  depreciationRecaptureTax: number;
+  netProceedsAfterTax: number;
+  cumulativeCashFlow: number;
+  totalDistributions: number;
+  contributedCapital: number;
+  equityMultiple: number | null;
+  irrPreTaxPct: number | null;
+  irrAfterTaxPct: number | null;
+  annualizedReturnPct: number | null;
+}
+
+
 export interface DebtSensitivityRow {
   label: string;
   monthlyPayment: number;
