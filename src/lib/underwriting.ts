@@ -769,8 +769,9 @@ function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
     stressScenario("vac-10", "vacancy", "Vacancy 10%", i, { vacancyPct: 10 }, baseline),
     stressScenario("vac-15", "vacancy", "Vacancy 15%", i, { vacancyPct: 15 }, baseline),
     stressScenario("vac-20", "vacancy", "Vacancy 20%", i, { vacancyPct: 20 }, baseline),
-    stressScenario("opex-10", "opex", "Operating expenses +10%", i, { __expenseMultiplier: 1.1 } as Partial<UnderwritingInputs>, baseline),
-    stressScenario("opex-20", "opex", "Operating expenses +20%", i, { __expenseMultiplier: 1.2 } as Partial<UnderwritingInputs>, baseline),
+    stressScenario("opex-10", "opex", "Operating expenses +10%", i, scaleOperatingExpenses(i, 1.1), baseline),
+    stressScenario("opex-20", "opex", "Operating expenses +20%", i, scaleOperatingExpenses(i, 1.2), baseline),
+
     stressScenario("rate+1", "rate", `Interest rate +1.00% (${(i.interestRatePct + 1).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 1 }, baseline),
     stressScenario("rate+2", "rate", `Interest rate +2.00% (${(i.interestRatePct + 2).toFixed(2)}%)`, i, { interestRatePct: i.interestRatePct + 2 }, baseline),
     stressScenario(
