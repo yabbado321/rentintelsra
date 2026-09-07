@@ -794,7 +794,33 @@ function stressScenario(
   };
 }
 
+/**
+ * Scales every operating expense input by a multiplier. Returns real input
+ * overrides (not a shortcut applied to NOI) so the whole chain — including
+ * break-even occupancy and expense ratio — recalculates consistently.
+ * CapEx reserve sits below NOI and is deliberately left untouched.
+ */
+function scaleOperatingExpenses(i: UnderwritingInputs, m: number): Partial<UnderwritingInputs> {
+  const s = (f: FlexAmount): FlexAmount => ({ ...f, value: f.value * m });
+  const scaleMap = (o?: Record<string, number | undefined>) => {
+    if (!o) return o;
+    const out: Record<string, number | undefined> = {};
+    for (const [k, v] of Object.entries(o)) out[k] = v === undefined ? undefined : v * m;
+    return out;
+  };
+  return {
+    propertyTaxes: s(i.propertyTaxes),
+    insurance: s(i.insurance),
+    management: s(i.management),
+    maintenance: s(i.maintenance),
+    hoaMonthly: (i.hoaMonthly || 0) * m,
+    ownerUtilitiesMonthly: (i.ownerUtilitiesMonthly || 0) * m,
+    otherOperating: scaleMap(i.otherOperating) as UnderwritingInputs["otherOperating"],
+  };
+}
+
 /** The required stress set — every row re-runs the engine end to end. */
+
 function buildStressScenarios(i: UnderwritingInputs): StressScenarioResult[] {
   const b = incomeStatement(i);
   const bd = debtFor(i);
