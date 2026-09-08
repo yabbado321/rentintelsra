@@ -1,9 +1,21 @@
-import { Document, Page, Text, View, StyleSheet, Svg, Rect, Line as SvgLine, Path } from "@react-pdf/renderer";
-import type { GuardrailFlag } from "@/lib/guardrails";
+import { Document, Page, Text, View, StyleSheet, Svg, Rect, Line as SvgLine } from "@react-pdf/renderer";
+import type { GuardrailFlag, UnderwritingResult } from "@/lib/underwriting";
+import type { MonteCarloResult } from "@/lib/underwritingMonteCarlo";
 
 /* ============================================================
  * RentIntel SRA — Institutional Investment Memorandum
  * 10-page underwriting package (+ optional AI memo cover pages)
+ *
+ * PURE PRESENTATION LAYER. Every financial number rendered on every page
+ * is read directly from a canonical UnderwritingResult / MonteCarloResult
+ * passed in as props — computed once by src/lib/underwriting.ts and
+ * src/lib/underwritingMonteCarlo.ts. This file contains NO independent
+ * NOI/cash-flow/capital-stack/amortization/exit/Monte-Carlo formulas.
+ * The only arithmetic below is formatting (dividing an annual canonical
+ * figure by 12 for a monthly display column) or a fixed display threshold
+ * used purely for badge coloring (e.g. "is DSCR >= 1.25" to pick a color) —
+ * never a recomputation of NOI, cash flow, LTV, LTC, DSCR, IRR, equity
+ * multiple, or exit proceeds.
  * ============================================================ */
 
 const COLORS = {
@@ -175,43 +187,30 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 6.5, color: COLORS.slateLight, letterSpacing: 1 },
 });
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v || 0);
-const fmtSigned = (v: number) => (v < 0 ? `(${fmt(Math.abs(v))})` : fmt(v));
-const pct = (v: number, d = 2) => `${(v || 0).toFixed(d)}%`;
+/* ---------------- Formatting helpers (formatting only — no financial logic) ---------------- */
+
+const fmt = (v: number | null | undefined) =>
+  v === null || v === undefined || !isFinite(v)
+    ? "N/A"
+    : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
+const fmtSigned = (v: number | null | undefined) =>
+  v === null || v === undefined || !isFinite(v) ? "N/A" : v < 0 ? `(${fmt(Math.abs(v))})` : fmt(v);
+const pct = (v: number | null | undefined, d = 2) =>
+  v === null || v === undefined || !isFinite(v) ? "N/A" : `${v.toFixed(d)}%`;
+const num = (v: number | null | undefined, d = 2) =>
+  v === null || v === undefined || !isFinite(v) ? "N/A" : v.toFixed(d);
 
 export interface UnderwritingReportData {
   propertyName: string;
   address?: string;
   preparedFor?: string;
   firmName?: string;
-  // Core KPIs
-  purchasePrice: number;
-  cashOnCash: number;
-  capRate: number;
-  dscr: number;
-  // Capital stack
-  downPayment: number;
-  closingCosts: number;
-  rehab: number;
-  loanAmount: number;
-  totalCashIn: number;
-  // Monthly income statement
-  grossRent: number;
-  otherIncome: number;
-  vacancy: number;
-  operatingExpenses: number;
-  noiMonthly: number;
-  debtService: number;
-  netCashFlow: number;
-  // Monte Carlo
-  monteCarlo?: {
-    iterations: number;
-    probNegativeCF: number;
-    expectedIRR: number;
-    irrP10: number;
-    irrP90: number;
-  };
+
+  /** Canonical output of computeUnderwriting() — the ONLY source of financial figures in this report. */
+  underwriting: UnderwritingResult;
+  /** Canonical output of runUnderwritingMonteCarlo() — the ONLY source of risk-simulation figures. */
+  monteCarlo?: MonteCarloResult;
+
   aiMemo?: {
     executiveSummary: string;
     financialAnalysis: string;
@@ -219,29 +218,13 @@ export interface UnderwritingReportData {
     valueAddRecommendations: string;
     updatedAt: string;
   };
+  /** Report-level guardrails IN ADDITION TO underwriting.flags (e.g. presentation-only disclosures). Both are shown on Page 8. */
   guardrails?: GuardrailFlag[];
+  /** External deal-conviction-index score, not produced by the underwriting engine. */
   dci?: { adjusted: number; ceiling: number; label: string };
-
-  /* -------- Extended underwriting inputs (optional) -------- */
-  arv?: number;
-  interestRate?: number;      // %
-  loanTerm?: number;          // years
-  taxRatePct?: number;        // % of value / yr
-  insRatePct?: number;        // % of value / yr
-  hoaMonthly?: number;
-  mgmtPct?: number;
-  maintPct?: number;
-  capexPct?: number;
-  vacancyPct?: number;
-  rentGrowth?: number;
-  expGrowth?: number;
-  appreciation?: number;
-  holdYears?: number;
-  projections?: { year: number; rent: number; value: number; cashFlow: number; equity: number }[];
-  expenseBreakdown?: { name: string; value: number }[];
 }
 
-/* ---------------- Utility components ---------------- */
+/* ---------------- Utility components (presentation only) ---------------- */
 
 function PageHeader({ firm, title }: { firm: string; title: string }) {
   return (
@@ -259,7 +242,7 @@ function PageFooter({ firm }: { firm: string }) {
   return (
     <View style={styles.footer} fixed>
       <Text style={styles.footerText}>{firm.toUpperCase()}  ·  CONFIDENTIAL — FOR DISCUSSION PURPOSES ONLY</Text>
-      <Text style={styles.footerText} render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} / ${totalPages}`} />
+      <Text style={styles.footerText} render={({ pageNumber, totalPages }: any) => `PAGE ${pageNumber} / ${totalPages}`} />
     </View>
   );
 }
@@ -321,7 +304,7 @@ function MultiCol({ cols, alt, bold, head }: { cols: string[]; alt?: boolean; bo
   );
 }
 
-/* ---------------- Simple SVG charts ---------------- */
+/* ---------------- Simple SVG charts (presentation only — data passed in) ---------------- */
 
 function HBarChart({ data, width = 480, barHeight = 14, maxLabel = 20 }: {
   data: { name: string; value: number }[]; width?: number; barHeight?: number; maxLabel?: number;
@@ -361,6 +344,7 @@ function HBarChart({ data, width = 480, barHeight = 14, maxLabel = 20 }: {
   );
 }
 
+/** Renders year-over-year cash flow vs. equity from canonical projection.years rows. */
 function CashFlowBars({ data, width = 480, height = 130 }: {
   data: { year: number; cashFlow: number; equity: number }[]; width?: number; height?: number;
 }) {
@@ -396,6 +380,7 @@ function CashFlowBars({ data, width = 480, height = 130 }: {
   );
 }
 
+/** Renders a Monte Carlo IRR distribution from canonical Distribution percentiles (no invented bell curve math beyond pixel mapping). */
 function MCHistogram({ p10, p50, p90, mean, width = 480, height = 90 }: {
   p10: number; p50: number; p90: number; mean: number; width?: number; height?: number;
 }) {
@@ -403,7 +388,6 @@ function MCHistogram({ p10, p50, p90, mean, width = 480, height = 90 }: {
   const max = Math.max(p90, mean) + 2;
   const range = max - min || 1;
   const pxOf = (v: number) => 10 + ((v - min) / range) * (width - 20);
-  // Approximate bell curve using triangle-ish path
   const cx = pxOf(p50);
   const left = pxOf(p10);
   const right = pxOf(p90);
@@ -426,11 +410,21 @@ function MCHistogram({ p10, p50, p90, mean, width = 480, height = 90 }: {
   );
 }
 
-/* ---------------- Recommendation logic ---------------- */
+/* ---------------- Recommendation logic ----------------
+ * These are DISPLAY-ONLY THRESHOLD COMPARISONS (badge selection), not a
+ * financial model: every value read (dscr, cashOnCash, capRate, cashFlow,
+ * probNegativeCashFlow) comes straight from the canonical result, and the
+ * only local arithmetic is comparing those canonical numbers against fixed
+ * policy thresholds to pick a verdict word and a color. No NOI/cash-flow/
+ * capital/IRR value is derived here.
+ * ---------------------------------------------------------------------- */
 
-function computeRecommendations(data: UnderwritingReportData) {
-  const { dscr, cashOnCash, capRate, netCashFlow, monteCarlo, dci } = data;
-  const mcNeg = monteCarlo?.probNegativeCF ?? 20;
+function computeRecommendations(u: UnderwritingResult, mc: MonteCarloResult | undefined, dci: UnderwritingReportData["dci"]) {
+  const dscr = u.metrics.dscr ?? 0;
+  const cashOnCash = u.metrics.cashOnCashAfterCapexPct ?? 0;
+  const capRate = u.metrics.capRatePct ?? 0;
+  const netCashFlow = u.cashFlow.annualAfterCapex;
+  const mcNeg = mc?.probNegativeCashFlow ?? 20;
   const dciAdj = dci?.adjusted ?? 60;
 
   let inv: "Strong Buy" | "Buy" | "Hold" | "Pass" = "Hold";
@@ -488,18 +482,10 @@ export default function UnderwritingReportPDF({ data }: { data: UnderwritingRepo
  * ============================================================ */
 
 function Page1_Executive({ data, firm, today }: { data: UnderwritingReportData; firm: string; today: string }) {
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const totalProjectCost = data.purchasePrice + data.rehab + data.closingCosts;
-  const ltv = arv > 0 ? (data.loanAmount / arv) * 100 : 0;
-  const ltc = totalProjectCost > 0 ? (data.loanAmount / totalProjectCost) * 100 : 0;
-  const annualNOI = data.noiMonthly * 12;
-  const debtYield = data.loanAmount > 0 ? (annualNOI / data.loanAmount) * 100 : 0;
-  const grossIncomeMo = data.grossRent + data.otherIncome;
-  const breakEvenOcc = grossIncomeMo > 0
-    ? Math.min(100, Math.max(0, ((data.debtService + data.operatingExpenses) / grossIncomeMo) * 100))
-    : 0;
-  const rec = computeRecommendations(data);
-  const summary = executiveSummaryNarrative(data, { arv, ltv, ltc, debtYield, breakEvenOcc });
+  const u = data.underwriting;
+  const arvDisplay = u.inputs.arv && u.inputs.arv > 0 ? u.inputs.arv : u.inputs.purchasePrice;
+  const rec = computeRecommendations(u, data.monteCarlo, data.dci);
+  const summary = executiveSummaryNarrative(data, u, arvDisplay);
 
   return (
     <Page size="LETTER" style={styles.page}>
@@ -524,52 +510,62 @@ function Page1_Executive({ data, firm, today }: { data: UnderwritingReportData; 
         </View>
       </View>
 
-      {/* KPI grid */}
+      {/* KPI grid — every value read directly from underwriting.capital / .metrics / .noiAnnual / .cashFlow */}
       <View style={styles.kpiGrid}>
-        <KpiBox label="Purchase Price" value={fmt(data.purchasePrice)} foot="Acquisition basis" />
-        <KpiBox label="ARV" value={fmt(arv)} foot="Stabilized value" />
-        <KpiBox label="Loan Amount" value={fmt(data.loanAmount)} foot={`${pct(ltv, 1)} LTV`} />
-        <KpiBox label="LTC" value={pct(ltc, 1)} foot="Loan / total cost" />
+        <KpiBox label="Purchase Price" value={fmt(u.inputs.purchasePrice)} foot="Acquisition basis" />
+        <KpiBox label="ARV" value={fmt(arvDisplay)} foot={u.inputs.arv ? "Entered ARV" : "= purchase price (no ARV entered)"} />
+        <KpiBox label="Loan Amount" value={fmt(u.capital.loanAmount)} foot={`${pct(u.metrics.ltvPct, 1)} LTV`} />
+        <KpiBox label="LTC" value={pct(u.metrics.ltcPct, 1)} foot="Loan ÷ total project cost" />
       </View>
       <View style={styles.kpiGrid}>
-        <KpiBox label="Total Cash In" value={fmt(data.totalCashIn)} foot="Equity + closing + rehab" />
-        <KpiBox label="Cash-on-Cash" value={pct(data.cashOnCash)} positive={data.cashOnCash > 0} foot="Yr-1 return on equity" />
-        <KpiBox label="Cap Rate" value={pct(data.capRate)} positive={data.capRate >= 5} foot="NOI ÷ value" />
-        <KpiBox label="DSCR" value={data.dscr.toFixed(2)} positive={data.dscr >= 1.25}
-          foot={data.dscr >= 1.25 ? "Lender-qualified" : data.dscr >= 1.0 ? "Marginal" : "Below 1.0"} />
+        <KpiBox label="Total Cash In" value={fmt(u.capital.cashInvested)} foot="Investor equity (spec §5)" />
+        <KpiBox label="Cash-on-Cash" value={pct(u.metrics.cashOnCashAfterCapexPct)} positive={(u.metrics.cashOnCashAfterCapexPct ?? 0) > 0} foot="Yr-1 return on equity, after CapEx" />
+        <KpiBox label="Cap Rate" value={pct(u.metrics.capRatePct)} positive={(u.metrics.capRatePct ?? 0) >= 5} foot="NOI ÷ purchase price" />
+        <KpiBox label="DSCR" value={num(u.metrics.dscr)} positive={(u.metrics.dscr ?? 0) >= 1.25}
+          foot={(u.metrics.dscr ?? 0) >= 1.25 ? "Lender-qualified" : (u.metrics.dscr ?? 0) >= 1.0 ? "Marginal" : "Below 1.0"} />
       </View>
       <View style={styles.kpiGrid}>
-        <KpiBox label="Debt Yield" value={pct(debtYield, 1)} positive={debtYield >= 10} foot="NOI ÷ loan" />
-        <KpiBox label="Break-Even Occ." value={pct(breakEvenOcc, 0)} foot="Min occupancy to cover" />
-        <KpiBox label="Annual NOI" value={fmt(annualNOI)} foot="Net Operating Income" />
-        <KpiBox label="Monthly Cash Flow" value={fmt(data.netCashFlow)} positive={data.netCashFlow >= 0} foot="After debt service" />
+        <KpiBox label="Debt Yield" value={pct(u.metrics.debtYieldPct, 1)} positive={(u.metrics.debtYieldPct ?? 0) >= 10} foot="NOI ÷ loan" />
+        <KpiBox label="Break-Even Occ." value={u.metrics.breakEvenOccupancyPct === null ? "Not achievable" : pct(u.metrics.breakEvenOccupancyPct, 0)} foot="Min occupancy to cover opex + debt" />
+        <KpiBox label="Annual NOI" value={fmt(u.noiAnnual)} foot="Net Operating Income" />
+        <KpiBox label="Monthly Cash Flow" value={fmt(u.cashFlow.monthlyAfterCapex)} positive={u.cashFlow.monthlyAfterCapex >= 0} foot="After debt service and CapEx" />
       </View>
 
       <Text style={styles.sectionTitle}>Executive Summary</Text>
       <Text style={styles.para}>{summary}</Text>
+
+      {u.validationErrors.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Model Validation Notice</Text>
+          <Text style={[styles.para, { color: COLORS.red }]}>
+            The underwriting engine flagged {u.validationErrors.length} reconciliation issue(s) with the inputs behind
+            this report. Figures above may not be internally consistent until these are resolved: {u.validationErrors.join("; ")}.
+          </Text>
+        </>
+      )}
 
       <PageFooter firm={firm} />
     </Page>
   );
 }
 
-function executiveSummaryNarrative(
-  d: UnderwritingReportData,
-  ext: { arv: number; ltv: number; ltc: number; debtYield: number; breakEvenOcc: number }
-) {
-  const dscrText = d.dscr >= 1.25
-    ? `debt service coverage of ${d.dscr.toFixed(2)}x provides comfortable cushion above the 1.25x lender threshold`
-    : d.dscr >= 1.0
-      ? `debt service coverage of ${d.dscr.toFixed(2)}x is thin and offers limited margin for operating variance`
-      : `debt service coverage of ${d.dscr.toFixed(2)}x is below break-even and indicates the property cannot service debt from operations`;
-  const cfText = d.netCashFlow >= 0
-    ? `first-year monthly cash flow of ${fmt(d.netCashFlow)} after all operating costs and debt service`
-    : `first-year cash flow of ${fmt(d.netCashFlow)}/month, requiring supplemental capital contributions`;
-  const yieldText = ext.debtYield >= 10
-    ? `Debt yield of ${ext.debtYield.toFixed(1)}% is within institutional acceptance ranges`
-    : `Debt yield of ${ext.debtYield.toFixed(1)}% falls below the 10% institutional threshold`;
+function executiveSummaryNarrative(data: UnderwritingReportData, u: UnderwritingResult, arvDisplay: number) {
+  const dscr = u.metrics.dscr ?? 0;
+  const dscrText = dscr >= 1.25
+    ? `debt service coverage of ${dscr.toFixed(2)}x provides comfortable cushion above the 1.25x lender threshold`
+    : dscr >= 1.0
+      ? `debt service coverage of ${dscr.toFixed(2)}x is thin and offers limited margin for operating variance`
+      : `debt service coverage of ${dscr.toFixed(2)}x is below break-even and indicates the property cannot service debt from operations`;
+  const cfText = u.cashFlow.monthlyAfterCapex >= 0
+    ? `first-year monthly cash flow of ${fmt(u.cashFlow.monthlyAfterCapex)} after all operating costs and debt service`
+    : `first-year cash flow of ${fmt(u.cashFlow.monthlyAfterCapex)}/month, requiring supplemental capital contributions`;
+  const debtYield = u.metrics.debtYieldPct ?? 0;
+  const yieldText = debtYield >= 10
+    ? `Debt yield of ${debtYield.toFixed(1)}% is within institutional acceptance ranges`
+    : `Debt yield of ${debtYield.toFixed(1)}% falls below the 10% institutional threshold`;
+  const breakEven = u.metrics.breakEvenOccupancyPct;
 
-  return `This underwriting evaluates the acquisition of ${d.propertyName || "the subject property"} at ${fmt(d.purchasePrice)} against a stabilized value of ${fmt(ext.arv)}, financed at ${ext.ltv.toFixed(1)}% loan-to-value and ${ext.ltc.toFixed(1)}% loan-to-cost. The transaction requires ${fmt(d.totalCashIn)} in total invested equity and delivers ${cfText}, producing a ${pct(d.cashOnCash)} cash-on-cash return and a ${pct(d.capRate)} cap rate. The ${dscrText}. ${yieldText}, and break-even occupancy sits at ${ext.breakEvenOcc.toFixed(0)}% — a ${100 - ext.breakEvenOcc >= 15 ? "meaningful" : "narrow"} operating margin. Refer to the risk analytics section for probabilistic downside modeling and to the investment committee memo for full recommendation rationale.`;
+  return `This underwriting evaluates the acquisition of ${data.propertyName || "the subject property"} at ${fmt(u.inputs.purchasePrice)} against a stabilized value of ${fmt(arvDisplay)}, financed at ${pct(u.metrics.ltvPct, 1)} loan-to-value and ${pct(u.metrics.ltcPct, 1)} loan-to-cost. The transaction requires ${fmt(u.capital.cashInvested)} in total invested equity and delivers ${cfText}, producing a ${pct(u.metrics.cashOnCashAfterCapexPct)} cash-on-cash return and a ${pct(u.metrics.capRatePct)} cap rate. The ${dscrText}. ${yieldText}, and break-even occupancy sits at ${breakEven === null ? "an unachievable level (expenses plus debt service exceed income even at full occupancy)" : `${breakEven.toFixed(0)}%`}. Refer to the risk analytics section for probabilistic downside modeling and to the investment committee memo for full recommendation rationale.`;
 }
 
 /* ============================================================
@@ -577,6 +573,7 @@ function executiveSummaryNarrative(
  * ============================================================ */
 
 function Page2_Property({ data, firm }: { data: UnderwritingReportData; firm: string }) {
+  const i = data.underwriting.inputs;
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="II · Property & Market Overview" />
@@ -587,12 +584,10 @@ function Page2_Property({ data, firm }: { data: UnderwritingReportData; firm: st
       <View style={styles.table}>
         <Row label="Address" value={data.address || "—"} />
         <Row label="Property Type" value="Single-family / small multifamily rental" alt />
-        <Row label="Year Built" value="Not provided — verify at inspection" />
-        <Row label="Square Footage" value="Not provided — verify at inspection" alt />
-        <Row label="Bedrooms / Bathrooms" value="Not provided" />
-        <Row label="Lot Size" value="Not provided" alt />
-        <Row label="Parking" value="Not provided" />
-        <Row label="Estimated Property Condition" value={data.rehab > 0 ? "Value-add — rehab budgeted" : "Turnkey / no rehab budgeted"} alt />
+        <Row label="Year Built" value={i.risk?.yearBuilt ? String(i.risk.yearBuilt) : "Not provided — verify at inspection"} />
+        <Row label="Square Footage" value={i.squareFeet ? i.squareFeet.toLocaleString() : "Not provided — verify at inspection"} alt />
+        <Row label="Units" value={i.units ? String(i.units) : "Not provided"} />
+        <Row label="Estimated Property Condition" value={i.rehabBudget > 0 ? "Value-add — rehab budgeted" : "Turnkey / no rehab budgeted"} alt />
       </View>
       <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 10, fontStyle: "italic" }}>
         Physical property specifications must be independently verified via inspection, county records, and appraisal. Values shown reflect only the underwriting inputs provided.
@@ -601,14 +596,13 @@ function Page2_Property({ data, firm }: { data: UnderwritingReportData; firm: st
       <Text style={styles.sectionTitle}>Neighborhood & Market Analysis</Text>
       <View style={styles.table}>
         <MultiCol cols={["Indicator", "Value", "Source Basis"]} head />
-        <MultiCol cols={["Walk Score", "Not verified", "Requires independent lookup"]} />
-        <MultiCol cols={["School Rating", "Not verified", "Requires GreatSchools / district data"]} alt />
-        <MultiCol cols={["Flood Zone", "Not verified", "FEMA map lookup required"]} />
-        <MultiCol cols={["Crime Rating", "Not verified", "Local / regional data required"]} alt />
-        <MultiCol cols={["Rent Growth", data.rentGrowth != null ? pct(data.rentGrowth) : "—", "Underwriting assumption"]} />
-        <MultiCol cols={["Appreciation Rate", data.appreciation != null ? pct(data.appreciation) : "—", "Underwriting assumption"]} alt />
-        <MultiCol cols={["Vacancy Assumption", data.vacancyPct != null ? pct(data.vacancyPct) : "—", "Underwriting assumption"]} />
-        <MultiCol cols={["Expense Inflation", data.expGrowth != null ? pct(data.expGrowth) : "—", "Underwriting assumption"]} alt />
+        <MultiCol cols={["ZIP Median Rent", i.market?.medianRent ? fmt(i.market.medianRent) : "Not verified", "Census ACS (if provided)"]} />
+        <MultiCol cols={["ZIP Vacancy Rate", i.market?.vacancyRatePct !== undefined ? pct(i.market.vacancyRatePct, 1) : "Not verified", "Census ACS (if provided)"]} alt />
+        <MultiCol cols={["Flood Zone", i.risk?.floodRisk ?? "Not verified", "FEMA map lookup required"]} />
+        <MultiCol cols={["Rent Growth Assumption", pct(i.rentGrowthPct), "RentIntel underwriting assumption"]} alt />
+        <MultiCol cols={["Appreciation Assumption", pct(i.appreciationPct), "RentIntel underwriting assumption"]} />
+        <MultiCol cols={["Vacancy Assumption", pct(i.vacancyPct), "RentIntel underwriting assumption"]} alt />
+        <MultiCol cols={["Expense Inflation Assumption", pct(i.expenseGrowthPct), "RentIntel underwriting assumption"]} />
       </View>
       <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 8, fontStyle: "italic" }}>
         Market indicators marked "Not verified" are not embedded in this report. Investors must independently verify demographic, employment, and neighborhood data before relying on projections.
@@ -617,9 +611,9 @@ function Page2_Property({ data, firm }: { data: UnderwritingReportData; firm: st
       <Text style={styles.sectionTitle}>Market Strength Assessment</Text>
       <Text style={styles.para}>
         Market strength is inferred indirectly from the underwriting assumptions rather than from directly ingested demographic data.
-        A rent growth assumption of {pct(data.rentGrowth ?? 3)} paired with appreciation of {pct(data.appreciation ?? 3)} reflects
-        {" "}{(data.rentGrowth ?? 3) >= 4 ? "an optimistic" : (data.rentGrowth ?? 3) >= 2 ? "a moderate" : "a conservative"} growth outlook.
-        Vacancy assumed at {pct(data.vacancyPct ?? 5)} is {" "}{(data.vacancyPct ?? 5) < 5 ? "aggressive versus the 5–8% stabilized benchmark" : "within stabilized market norms"}.
+        A rent growth assumption of {pct(i.rentGrowthPct)} paired with appreciation of {pct(i.appreciationPct)} reflects
+        {" "}{i.rentGrowthPct >= 4 ? "an optimistic" : i.rentGrowthPct >= 2 ? "a moderate" : "a conservative"} growth outlook.
+        Vacancy assumed at {pct(i.vacancyPct)} is {" "}{i.vacancyPct < 5 ? "aggressive versus the 5–8% stabilized benchmark" : "within stabilized market norms"}.
         Investors are strongly advised to independently corroborate these assumptions using multiple market data sources — including HUD Small Area FMR, CoStar/Yardi comparable rent surveys, BLS employment statistics, and local MLS days-on-market data — before proceeding to LOI.
       </Text>
 
@@ -630,20 +624,15 @@ function Page2_Property({ data, firm }: { data: UnderwritingReportData; firm: st
 
 /* ============================================================
  * PAGE 3 — Acquisition & Capital Stack
+ * All figures read directly from underwriting.capital / .metrics.
+ * The Sources & Uses / Sources of Capital tables render the canonical
+ * `capital.uses` / `capital.sources` arrays verbatim — no line item here
+ * is independently computed.
  * ============================================================ */
 
 function Page3_Capital({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const loanFees = data.loanAmount * 0.01; // 1% loan fee assumption
-  const inspection = 500;
-  const appraisal = 650;
-  const holdingCosts = data.debtService * 2; // 2 months holding
-  const contingency = data.rehab * 0.10;
-  const totalProject = data.purchasePrice + data.closingCosts + loanFees + data.rehab + holdingCosts + inspection + appraisal + contingency;
-  const borrowerEquity = totalProject - data.loanAmount;
-  const equityPct = totalProject > 0 ? (borrowerEquity / totalProject) * 100 : 0;
-  const ltv = arv > 0 ? (data.loanAmount / arv) * 100 : 0;
-  const ltc = totalProject > 0 ? (data.loanAmount / totalProject) * 100 : 0;
+  const u = data.underwriting;
+  const cap = u.capital;
 
   return (
     <Page size="LETTER" style={styles.page}>
@@ -654,45 +643,41 @@ function Page3_Capital({ data, firm }: { data: UnderwritingReportData; firm: str
       <Text style={styles.sectionTitle}>Sources & Uses</Text>
       <View style={styles.table}>
         <MultiCol cols={["Use of Funds", "Amount"]} head />
-        <MultiCol cols={["Purchase Price", fmt(data.purchasePrice)]} />
-        <MultiCol cols={["Closing Costs (title, escrow, transfer)", fmt(data.closingCosts)]} alt />
-        <MultiCol cols={["Loan Origination & Fees (~1% of loan)", fmt(loanFees)]} />
-        <MultiCol cols={["Rehab / CapEx Budget", fmt(data.rehab)]} alt />
-        <MultiCol cols={["Holding Costs (~2 mo debt service)", fmt(holdingCosts)]} />
-        <MultiCol cols={["Inspection", fmt(inspection)]} alt />
-        <MultiCol cols={["Appraisal", fmt(appraisal)]} />
-        <MultiCol cols={["Contingency Reserve (10% of rehab)", fmt(contingency)]} alt />
+        {cap.uses.map((use, i) => (
+          <MultiCol key={use.key} alt={i % 2 === 1} cols={[use.label + (use.estimated ? " (Est.)" : ""), fmt(use.amount)]} />
+        ))}
         <View style={styles.rowTotal}>
           <Text style={[styles.cell, { fontFamily: "Helvetica-Bold" }]}>Total Project Cost</Text>
-          <Text style={[styles.cell, styles.cellRight]}>{fmt(totalProject)}</Text>
+          <Text style={[styles.cell, styles.cellRight]}>{fmt(cap.totalProjectCost)}</Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Sources of Capital</Text>
       <View style={styles.table}>
         <MultiCol cols={["Source", "Amount", "% of Total"]} head />
-        <MultiCol cols={["Senior Debt", fmt(data.loanAmount), pct(ltc, 1)]} />
-        <MultiCol cols={["Borrower Equity (cash required)", fmt(borrowerEquity), pct(equityPct, 1)]} alt />
+        {cap.sources.map((src, i) => (
+          <MultiCol key={src.key} alt={i % 2 === 1} cols={[src.label, fmt(src.amount), pct(src.sharePct, 1)]} />
+        ))}
         <View style={styles.rowTotal}>
           <Text style={[styles.cell, { fontFamily: "Helvetica-Bold" }]}>Total Sources</Text>
-          <Text style={[styles.cell, styles.cellRight]}>{fmt(totalProject)}</Text>
+          <Text style={[styles.cell, styles.cellRight]}>{fmt(cap.totalProjectCost)}</Text>
           <Text style={[styles.cell, styles.cellRight]}>100.0%</Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Leverage Metrics</Text>
       <View style={styles.kpiGrid}>
-        <KpiBox label="Loan-to-Value" value={pct(ltv, 1)} foot="Loan ÷ ARV" positive={ltv <= 75} />
-        <KpiBox label="Loan-to-Cost" value={pct(ltc, 1)} foot="Loan ÷ total cost" positive={ltc <= 80} />
-        <KpiBox label="Equity %" value={pct(equityPct, 1)} foot="Borrower skin-in-the-game" />
-        <KpiBox label="Cash Required at Closing" value={fmt(borrowerEquity)} foot="Total investor equity" />
+        <KpiBox label="Loan-to-Value" value={pct(u.metrics.ltvPct, 1)} foot="Loan ÷ purchase price" positive={(u.metrics.ltvPct ?? 100) <= 75} />
+        <KpiBox label="Loan-to-Cost" value={pct(u.metrics.ltcPct, 1)} foot="Loan ÷ total project cost" positive={(u.metrics.ltcPct ?? 100) <= 80} />
+        <KpiBox label="Equity %" value={pct(u.metrics.equitySharePct, 1)} foot="Investor equity ÷ total project cost" />
+        <KpiBox label="Cash Required at Closing" value={fmt(cap.investorEquity)} foot="Investor equity / cash invested" />
       </View>
 
       <Text style={styles.para}>
-        Capital structure reflects a {ltv <= 75 ? "moderate" : "aggressive"} leverage profile at {pct(ltv, 1)} LTV and {pct(ltc, 1)} LTC.
-        {ltv > 80 ? " LTV above 80% materially constrains lender options and typically requires portfolio or private debt with pricing premiums." : ""}
-        {" "}Borrower equity commitment of {fmt(borrowerEquity)} represents {pct(equityPct, 1)} of the total capitalization, providing
-        {equityPct >= 25 ? " adequate" : " modest"} loss-absorption capacity ahead of the senior debt.
+        Capital structure reflects a {(u.metrics.ltvPct ?? 0) <= 75 ? "moderate" : "aggressive"} leverage profile at {pct(u.metrics.ltvPct, 1)} LTV and {pct(u.metrics.ltcPct, 1)} LTC.
+        {(u.metrics.ltvPct ?? 0) > 80 ? " LTV above 80% materially constrains lender options and typically requires portfolio or private debt with pricing premiums." : ""}
+        {" "}Investor equity commitment of {fmt(cap.investorEquity)} represents {pct(u.metrics.equitySharePct, 1)} of the total capitalization, providing
+        {(u.metrics.equitySharePct ?? 0) >= 25 ? " adequate" : " modest"} loss-absorption capacity ahead of the senior debt.
       </Text>
 
       <PageFooter firm={firm} />
@@ -702,74 +687,83 @@ function Page3_Capital({ data, firm }: { data: UnderwritingReportData; firm: str
 
 /* ============================================================
  * PAGE 4 — Operating Income Statement
+ * Line items render underwriting.expenses.lines verbatim (no heuristic
+ * tax/insurance/management/maintenance/capex allocation). The "Stabilized"
+ * figure is the canonical Year-2 row from underwriting.projection.years —
+ * not a locally re-derived growth multiplier.
  * ============================================================ */
 
 function Page4_Income({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const gross = data.grossRent + data.otherIncome;
-  const egi = gross - data.vacancy;
-  const noiMo = data.noiMonthly;
-  const noiYr = noiMo * 12;
-  const debtYr = data.debtService * 12;
-  const cfYr = data.netCashFlow * 12;
-  const stabilizedRent = data.grossRent * (1 + (data.rentGrowth ?? 3) / 100);
-  const noiMargin = gross > 0 ? (noiMo / gross) * 100 : 0;
-  const expRatio = egi > 0 ? (data.operatingExpenses / egi) * 100 : 0;
-
-  // Approximate expense components using ratios if provided
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const taxMo = data.taxRatePct != null ? (arv * data.taxRatePct) / 100 / 12 : data.operatingExpenses * 0.30;
-  const insMo = data.insRatePct != null ? (arv * data.insRatePct) / 100 / 12 : data.operatingExpenses * 0.10;
-  const hoaMo = data.hoaMonthly ?? 0;
-  const mgmtMo = data.mgmtPct != null ? (data.grossRent * data.mgmtPct) / 100 : data.operatingExpenses * 0.15;
-  const maintMo = data.maintPct != null ? (data.grossRent * data.maintPct) / 100 : data.operatingExpenses * 0.15;
-  const capexMo = data.capexPct != null ? (data.grossRent * data.capexPct) / 100 : data.operatingExpenses * 0.15;
+  const u = data.underwriting;
+  const year2 = u.projection.years.find((y) => y.year === 2);
+  const grossIncomeMo = (u.income.grossPotentialRentAnnual + u.income.otherIncomeAnnual) / 12;
+  const debtServiceMo = u.debt.annualDebtService / 12;
+  const cashFlowBeforeCapexMo = u.cashFlow.monthlyBeforeCapex;
+  const capexMo = u.expenses.capexReserveAnnual / 12;
 
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="IV · Operating Income Statement" />
       <Text style={styles.pageTitle}>Operating Income Statement</Text>
-      <Text style={styles.pageSub}>Monthly · Annual · Stabilized (Year 2)</Text>
+      <Text style={styles.pageSub}>Year 1 (Monthly · Annual) from the canonical underwriting engine</Text>
 
       <View style={styles.table}>
-        <MultiCol cols={["Line Item", "Monthly", "Annual", "Stabilized"]} head />
-        <MultiCol cols={["Scheduled Rent", fmt(data.grossRent), fmt(data.grossRent * 12), fmt(stabilizedRent * 12)]} />
-        <MultiCol cols={["Other Income (parking / laundry / fees)", fmt(data.otherIncome), fmt(data.otherIncome * 12), fmt(data.otherIncome * 12)]} alt />
-        <MultiCol cols={["Gross Potential Income", fmt(gross), fmt(gross * 12), fmt((stabilizedRent + data.otherIncome) * 12)]} bold />
-        <MultiCol cols={["Less: Vacancy & Credit Loss", `(${fmt(data.vacancy)})`, `(${fmt(data.vacancy * 12)})`, `(${fmt(stabilizedRent * (data.vacancyPct ?? 5) / 100 * 12)})`]} alt />
-        <MultiCol cols={["Effective Gross Income", fmt(egi), fmt(egi * 12), fmt((stabilizedRent + data.otherIncome - stabilizedRent * (data.vacancyPct ?? 5) / 100) * 12)]} bold />
+        <MultiCol cols={["Line Item", "Monthly", "Annual"]} head />
+        <MultiCol cols={["Gross Potential Rent", fmt(u.income.grossPotentialRentAnnual / 12), fmt(u.income.grossPotentialRentAnnual)]} />
+        <MultiCol cols={["Other Income", fmt(u.income.otherIncomeAnnual / 12), fmt(u.income.otherIncomeAnnual)]} alt />
+        <MultiCol cols={["Gross Potential Income", fmt(grossIncomeMo), fmt(grossIncomeMo * 12)]} bold />
+        <MultiCol cols={["Less: Vacancy & Credit Loss", `(${fmt(u.income.vacancyLossAnnual / 12)})`, `(${fmt(u.income.vacancyLossAnnual)})`]} alt />
+        <MultiCol cols={["Effective Gross Income", fmt(u.income.effectiveGrossIncomeAnnual / 12), fmt(u.income.effectiveGrossIncomeAnnual)]} bold />
 
-        <MultiCol cols={["Property Taxes", `(${fmt(taxMo)})`, `(${fmt(taxMo * 12)})`, `(${fmt(taxMo * 12 * 1.03)})`]} />
-        <MultiCol cols={["Insurance", `(${fmt(insMo)})`, `(${fmt(insMo * 12)})`, `(${fmt(insMo * 12 * 1.05)})`]} alt />
-        <MultiCol cols={["HOA / Association", `(${fmt(hoaMo)})`, `(${fmt(hoaMo * 12)})`, `(${fmt(hoaMo * 12 * 1.03)})`]} />
-        <MultiCol cols={["Property Management", `(${fmt(mgmtMo)})`, `(${fmt(mgmtMo * 12)})`, `(${fmt((stabilizedRent * (data.mgmtPct ?? 8)) / 100 * 12)})`]} alt />
-        <MultiCol cols={["Maintenance & Repairs", `(${fmt(maintMo)})`, `(${fmt(maintMo * 12)})`, `(${fmt((stabilizedRent * (data.maintPct ?? 5)) / 100 * 12)})`]} />
-        <MultiCol cols={["Capital Reserve (CapEx)", `(${fmt(capexMo)})`, `(${fmt(capexMo * 12)})`, `(${fmt((stabilizedRent * (data.capexPct ?? 5)) / 100 * 12)})`]} alt />
-        <MultiCol cols={["Total Operating Expenses", `(${fmt(data.operatingExpenses)})`, `(${fmt(data.operatingExpenses * 12)})`, "—"]} bold />
+        {u.expenses.lines.filter((l) => l.inNOI).map((line, i) => (
+          <MultiCol
+            key={line.key}
+            alt={i % 2 === 1}
+            cols={[line.label + (line.estimated ? " (Est.)" : ""), `(${fmt(line.annual / 12)})`, `(${fmt(line.annual)})`]}
+          />
+        ))}
+        <MultiCol cols={["Total Operating Expenses", `(${fmt(u.expenses.totalOperatingAnnual / 12)})`, `(${fmt(u.expenses.totalOperatingAnnual)})`]} bold />
 
-        <MultiCol cols={["Net Operating Income (NOI)", fmt(noiMo), fmt(noiYr), fmt(noiYr * 1.03)]} bold />
-        <MultiCol cols={["Debt Service (P&I + PMI)", `(${fmt(data.debtService)})`, `(${fmt(debtYr)})`, `(${fmt(debtYr)})`]} alt />
+        <MultiCol cols={["Net Operating Income (NOI)", fmt(u.noiAnnual / 12), fmt(u.noiAnnual)]} bold />
+        <MultiCol cols={["Debt Service (P&I + MI)", `(${fmt(debtServiceMo)})`, `(${fmt(u.debt.annualDebtService)})`]} alt />
+        <MultiCol cols={["Cash Flow Before CapEx", fmt(cashFlowBeforeCapexMo), fmt(u.cashFlow.annualBeforeCapex)]} bold />
+        <MultiCol cols={["CapEx Reserve (below NOI)", `(${fmt(capexMo)})`, `(${fmt(u.expenses.capexReserveAnnual)})`]} alt />
         <View style={styles.rowTotal}>
-          <Text style={[styles.cell, { fontFamily: "Helvetica-Bold" }]}>Net Cash Flow</Text>
-          <Text style={[styles.cell, styles.cellRight, cfYr >= 0 ? styles.cellRightPos : styles.cellRightNeg]}>{fmt(data.netCashFlow)}</Text>
-          <Text style={[styles.cell, styles.cellRight, cfYr >= 0 ? styles.cellRightPos : styles.cellRightNeg]}>{fmt(cfYr)}</Text>
-          <Text style={[styles.cell, styles.cellRight]}>—</Text>
+          <Text style={[styles.cell, { fontFamily: "Helvetica-Bold" }]}>Net Cash Flow (After CapEx)</Text>
+          <Text style={[styles.cell, styles.cellRight, u.cashFlow.monthlyAfterCapex >= 0 ? styles.cellRightPos : styles.cellRightNeg]}>{fmt(u.cashFlow.monthlyAfterCapex)}</Text>
+          <Text style={[styles.cell, styles.cellRight, u.cashFlow.annualAfterCapex >= 0 ? styles.cellRightPos : styles.cellRightNeg]}>{fmt(u.cashFlow.annualAfterCapex)}</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Operating Ratios</Text>
-      <View style={styles.kpiGrid}>
-        <KpiBox label="NOI Margin" value={pct(noiMargin, 1)} foot="NOI ÷ gross income" positive={noiMargin >= 55} />
-        <KpiBox label="Expense Ratio" value={pct(expRatio, 1)} foot="OpEx ÷ EGI" positive={expRatio <= 45} />
-        <KpiBox label="DSCR" value={data.dscr.toFixed(2)} positive={data.dscr >= 1.25} foot="NOI ÷ debt service" />
-        <KpiBox label="Annual NOI" value={fmt(noiYr)} foot="Year-1 net operating" />
-      </View>
-
-      {data.expenseBreakdown && data.expenseBreakdown.length > 0 && (
+      {year2 && (
         <>
-          <Text style={styles.sectionTitle}>Monthly Expense Composition</Text>
-          <HBarChart data={data.expenseBreakdown.filter(e => e.name !== "Mortgage")} />
+          <Text style={styles.sectionTitle}>Year 2 (Stabilized) Snapshot</Text>
+          <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 6, fontStyle: "italic" }}>
+            From the canonical multi-year projection (includes the entered rent-growth and expense-growth assumptions). Not re-derived locally.
+          </Text>
+          <View style={styles.kpiGrid}>
+            <KpiBox label="Gross Potential Rent" value={fmt(year2.grossPotentialRent)} foot="Year 2, annual" />
+            <KpiBox label="Effective Gross Income" value={fmt(year2.effectiveGrossIncome)} foot="Year 2, annual" />
+            <KpiBox label="Operating Expenses" value={fmt(year2.operatingExpenses)} foot="Year 2, annual" />
+            <KpiBox label="NOI" value={fmt(year2.noi)} foot="Year 2, annual" />
+          </View>
         </>
       )}
+
+      <Text style={styles.sectionTitle}>Operating Ratios</Text>
+      <View style={styles.kpiGrid}>
+        <KpiBox label="Expense Ratio" value={pct(u.metrics.expenseRatioPct, 1)} foot="OpEx ÷ EGI" positive={(u.metrics.expenseRatioPct ?? 100) <= 45} />
+        <KpiBox label="DSCR" value={num(u.metrics.dscr)} positive={(u.metrics.dscr ?? 0) >= 1.25} foot="NOI ÷ debt service" />
+        <KpiBox label="Debt Yield" value={pct(u.metrics.debtYieldPct, 1)} positive={(u.metrics.debtYieldPct ?? 0) >= 10} foot="NOI ÷ loan" />
+        <KpiBox label="Annual NOI" value={fmt(u.noiAnnual)} foot="Year-1 net operating income" />
+      </View>
+
+      <Text style={styles.sectionTitle}>Monthly Expense Composition</Text>
+      <HBarChart
+        data={u.expenses.lines
+          .filter((l) => l.inNOI && l.annual !== 0)
+          .map((l) => ({ name: l.label, value: l.annual / 12 }))}
+      />
 
       <PageFooter firm={firm} />
     </Page>
@@ -778,36 +772,17 @@ function Page4_Income({ data, firm }: { data: UnderwritingReportData; firm: stri
 
 /* ============================================================
  * PAGE 5 — Financing Analysis
+ * Remaining balance schedule uses underwriting.projection.exitScenarios
+ * (each independently amortized for its own holdYears) rather than a
+ * locally re-run amortization loop, so this page can never disagree with
+ * Page 9's exit analysis.
  * ============================================================ */
 
 function Page5_Financing({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const rate = data.interestRate ?? 6.5;
-  const term = data.loanTerm ?? 30;
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const totalCost = data.purchasePrice + data.rehab + data.closingCosts;
-  const ltv = arv > 0 ? (data.loanAmount / arv) * 100 : 0;
-  const ltc = totalCost > 0 ? (data.loanAmount / totalCost) * 100 : 0;
-  const noiYr = data.noiMonthly * 12;
-  const debtYr = data.debtService * 12;
-  const debtYield = data.loanAmount > 0 ? (noiYr / data.loanAmount) * 100 : 0;
-  const cushion = data.dscr - 1.25;
-  const roe = data.totalCashIn > 0 ? ((data.netCashFlow * 12) / data.totalCashIn) * 100 : 0;
-
-  // Amortization: first-month interest / principal
-  const mRate = rate / 100 / 12;
-  const firstInterest = data.loanAmount * mRate;
-  const firstPrincipal = Math.max(0, data.debtService - firstInterest);
-
-  // Remaining balance schedule (5 / 10 yrs)
-  const balAt = (yrs: number) => {
-    let bal = data.loanAmount;
-    for (let m = 0; m < yrs * 12; m++) {
-      const i = bal * mRate;
-      bal -= Math.max(0, data.debtService - i);
-      if (bal <= 0) return 0;
-    }
-    return bal;
-  };
+  const u = data.underwriting;
+  const cushion = (u.metrics.dscr ?? 0) - 1.25; // display-only delta vs. the standard 1.25x lender threshold
+  const year1 = u.projection.years.find((y) => y.year === 1);
+  const balanceSchedule = [...u.projection.exitScenarios].sort((a, b) => a.holdYears - b.holdYears);
 
   return (
     <Page size="LETTER" style={styles.page}>
@@ -817,45 +792,50 @@ function Page5_Financing({ data, firm }: { data: UnderwritingReportData; firm: s
 
       <Text style={styles.sectionTitle}>Loan Summary</Text>
       <View style={styles.table}>
-        <Row label="Loan Amount" value={fmt(data.loanAmount)} />
-        <Row label="Interest Rate" value={pct(rate)} alt />
+        <Row label="Loan Amount" value={fmt(u.debt.loanAmount)} />
+        <Row label="Interest Rate" value={pct(u.inputs.interestRatePct)} alt />
         <Row label="Loan Type" value="Fixed rate, fully amortizing" />
-        <Row label="Loan Term" value={`${term} years`} alt />
-        <Row label="Amortization" value={`${term} years`} />
-        <Row label="Balloon Date" value="None (fully amortizing)" alt />
-        <Row label="Monthly Payment (P&I + PMI)" value={fmt(data.debtService)} />
-        <Row label="Year-1 Principal (Month 1)" value={fmt(firstPrincipal)} alt />
-        <Row label="Year-1 Interest (Month 1)" value={fmt(firstInterest)} />
+        <Row label="Loan Term" value={`${u.inputs.loanTermYears} years`} alt />
+        <Row label="Monthly Payment (P&I)" value={fmt(u.debt.monthlyPI)} />
+        {u.debt.monthlyMortgageInsurance > 0 && <Row label="Monthly Mortgage Insurance" value={fmt(u.debt.monthlyMortgageInsurance)} alt />}
+        {year1 && <Row label="Year 1 Principal Paid" value={fmt(year1.principal)} alt />}
+        {year1 && <Row label="Year 1 Interest Paid" value={fmt(year1.interest)} />}
       </View>
 
-      <Text style={styles.sectionTitle}>Remaining Balance Schedule</Text>
+      <Text style={styles.sectionTitle}>Remaining Balance by Holding Period</Text>
+      <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 6, fontStyle: "italic" }}>
+        Each row is its own independent projection.exitScenarios entry — the same figures shown on the Exit Strategy page.
+      </Text>
       <View style={styles.table}>
         <MultiCol cols={["Time Horizon", "Remaining Balance", "Principal Paid"]} head />
-        <MultiCol cols={["End of Year 1", fmt(balAt(1)), fmt(data.loanAmount - balAt(1))]} />
-        <MultiCol cols={["End of Year 3", fmt(balAt(3)), fmt(data.loanAmount - balAt(3))]} alt />
-        <MultiCol cols={["End of Year 5", fmt(balAt(5)), fmt(data.loanAmount - balAt(5))]} />
-        <MultiCol cols={["End of Year 10", fmt(balAt(10)), fmt(data.loanAmount - balAt(10))]} alt />
+        {balanceSchedule.map((s, i) => (
+          <MultiCol
+            key={s.holdYears}
+            alt={i % 2 === 1}
+            cols={[`End of Year ${s.holdYears}`, fmt(s.loanPayoff), fmt(u.debt.loanAmount - s.loanPayoff)]}
+          />
+        ))}
       </View>
 
       <Text style={styles.sectionTitle}>Coverage & Leverage Metrics</Text>
       <View style={styles.kpiGrid}>
-        <KpiBox label="DSCR" value={data.dscr.toFixed(2)} positive={data.dscr >= 1.25} foot="NOI ÷ debt service" />
+        <KpiBox label="DSCR" value={num(u.metrics.dscr)} positive={(u.metrics.dscr ?? 0) >= 1.25} foot="NOI ÷ debt service" />
         <KpiBox label="Coverage Cushion" value={`${cushion >= 0 ? "+" : ""}${cushion.toFixed(2)}x`} positive={cushion >= 0} foot="vs. 1.25x threshold" />
-        <KpiBox label="Debt Yield" value={pct(debtYield, 1)} positive={debtYield >= 10} foot="NOI ÷ loan" />
-        <KpiBox label="LTV" value={pct(ltv, 1)} positive={ltv <= 75} foot="Loan ÷ value" />
+        <KpiBox label="Debt Yield" value={pct(u.metrics.debtYieldPct, 1)} positive={(u.metrics.debtYieldPct ?? 0) >= 10} foot="NOI ÷ loan" />
+        <KpiBox label="LTV" value={pct(u.metrics.ltvPct, 1)} positive={(u.metrics.ltvPct ?? 100) <= 75} foot="Loan ÷ purchase price" />
       </View>
       <View style={styles.kpiGrid}>
-        <KpiBox label="LTC" value={pct(ltc, 1)} positive={ltc <= 80} foot="Loan ÷ cost" />
-        <KpiBox label="Cash Invested" value={fmt(data.totalCashIn)} foot="Equity + closing + rehab" />
-        <KpiBox label="Return on Equity" value={pct(roe)} positive={roe >= 5} foot="Yr-1 cash return" />
-        <KpiBox label="Annual Debt Service" value={fmt(debtYr)} foot="P&I + PMI × 12" />
+        <KpiBox label="LTC" value={pct(u.metrics.ltcPct, 1)} positive={(u.metrics.ltcPct ?? 100) <= 80} foot="Loan ÷ total project cost" />
+        <KpiBox label="Cash Invested" value={fmt(u.capital.cashInvested)} foot="Investor equity" />
+        <KpiBox label="Cash-on-Cash (After CapEx)" value={pct(u.metrics.cashOnCashAfterCapexPct)} positive={(u.metrics.cashOnCashAfterCapexPct ?? 0) >= 5} foot="Yr-1 cash return" />
+        <KpiBox label="Annual Debt Service" value={fmt(u.debt.annualDebtService)} foot="P&I + MI × 12" />
       </View>
 
       <Text style={styles.para}>
-        Debt sizing carries {data.dscr >= 1.25 ? "adequate" : data.dscr >= 1.10 ? "marginal" : "insufficient"} operating coverage at {data.dscr.toFixed(2)}x DSCR
+        Debt sizing carries {(u.metrics.dscr ?? 0) >= 1.25 ? "adequate" : (u.metrics.dscr ?? 0) >= 1.10 ? "marginal" : "insufficient"} operating coverage at {num(u.metrics.dscr)}x DSCR
         {cushion >= 0 ? `, providing a ${cushion.toFixed(2)}x cushion above the standard 1.25x lender threshold` : `, falling ${Math.abs(cushion).toFixed(2)}x short of the 1.25x lender minimum`}.
-        Debt yield of {pct(debtYield, 1)} {debtYield >= 10 ? "meets" : "falls below"} institutional 10% minimums, indicating the loan
-        {debtYield >= 10 ? " is sizable relative to income and defensible against value declines" : " may exceed prudent sizing for the property's NOI generation"}.
+        Debt yield of {pct(u.metrics.debtYieldPct, 1)} {(u.metrics.debtYieldPct ?? 0) >= 10 ? "meets" : "falls below"} institutional 10% minimums, indicating the loan
+        {(u.metrics.debtYieldPct ?? 0) >= 10 ? " is sizable relative to income and defensible against value declines" : " may exceed prudent sizing for the property's NOI generation"}.
       </Text>
 
       <PageFooter firm={firm} />
@@ -865,102 +845,42 @@ function Page5_Financing({ data, firm }: { data: UnderwritingReportData; firm: s
 
 /* ============================================================
  * PAGE 6 — Stress Testing & Sensitivity
+ * Renders underwriting.sensitivity.scenarios verbatim. No local scenario()
+ * function, no locally generated sensitivity heatmap grid.
  * ============================================================ */
 
 function Page6_Stress({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const baseNoi = data.noiMonthly * 12;
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const rate = data.interestRate ?? 6.5;
-
-  // Helper to compute scenario metrics given multiplicative shocks
-  const scenario = (rentMult: number, expMult: number, rateAddPct: number, rehabAdd: number) => {
-    const rent = data.grossRent * rentMult;
-    const vacancy = rent * ((data.vacancyPct ?? 5) / 100);
-    const opex = data.operatingExpenses * expMult;
-    const gross = rent + data.otherIncome;
-    const noi = (gross - vacancy - opex) * 12;
-    // recompute debt service if rate changes
-    const newRate = (rate + rateAddPct) / 100 / 12;
-    const n = (data.loanTerm ?? 30) * 12;
-    const ds = data.loanAmount > 0 && newRate > 0
-      ? data.loanAmount * newRate / (1 - Math.pow(1 + newRate, -n))
-      : data.debtService;
-    const debt = ds * 12;
-    const cf = noi - debt;
-    const dscr = debt > 0 ? noi / debt : 0;
-    const cap = arv > 0 ? (noi / arv) * 100 : 0;
-    let verdict: string;
-    if (dscr >= 1.35 && cf > 0) verdict = "STRONG";
-    else if (dscr >= 1.20 && cf > 0) verdict = "OK";
-    else if (dscr >= 1.0) verdict = "MARGINAL";
-    else verdict = "FAILS";
-    return { noi, cf, dscr, cap, verdict };
+  const u = data.underwriting;
+  const groupLabel: Record<string, string> = {
+    rent: "Rent", vacancy: "Vacancy", opex: "Operating Expenses", rate: "Interest Rate", management: "Management", rehab: "Rehab",
   };
-
-  const scenarios: { label: string; s: ReturnType<typeof scenario> }[] = [
-    { label: "Current Projection", s: scenario(1, 1, 0, 0) },
-    { label: "Rent −5%", s: scenario(0.95, 1, 0, 0) },
-    { label: "Rent −10%", s: scenario(0.90, 1, 0, 0) },
-    { label: "Rent −15%", s: scenario(0.85, 1, 0, 0) },
-    { label: "Vacancy 10%", s: scenario(1, 1 + 0.05, 0, 0) },
-    { label: "Vacancy 15%", s: scenario(1, 1 + 0.10, 0, 0) },
-    { label: "Vacancy 20%", s: scenario(1, 1 + 0.15, 0, 0) },
-    { label: "OpEx +10%", s: scenario(1, 1.10, 0, 0) },
-    { label: "OpEx +20%", s: scenario(1, 1.20, 0, 0) },
-    { label: "Interest Rate +1%", s: scenario(1, 1, 1, 0) },
-    { label: "Interest Rate +2%", s: scenario(1, 1, 2, 0) },
-    { label: "Rehab Over +10%", s: scenario(1, 1, 0, data.rehab * 0.1) },
-    { label: "Rehab Over +20%", s: scenario(1, 1, 0, data.rehab * 0.2) },
-  ];
-
-  // Heatmap: rent × vacancy (5 × 5)
-  const rentSteps = [1.00, 0.95, 0.90, 0.85, 0.80];
-  const vacSteps = [1.00, 1.05, 1.10, 1.15, 1.20];
 
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="VI · Stress Testing & Sensitivity" />
       <Text style={styles.pageTitle}>Stress Testing & Sensitivity Analysis</Text>
-      <Text style={styles.pageSub}>Downside scenarios · rate shocks · rehab overruns</Text>
+      <Text style={styles.pageSub}>Every row below reruns the canonical underwriting engine end to end</Text>
 
       <View style={styles.table}>
-        <MultiCol cols={["Scenario", "NOI", "Cash Flow", "DSCR", "Cap", "Rec."]} head />
-        {scenarios.map((sc, i) => (
-          <MultiCol key={sc.label} alt={i % 2 === 1}
-            cols={[sc.label, fmt(sc.s.noi), fmt(sc.s.cf), sc.s.dscr.toFixed(2), pct(sc.s.cap, 1), sc.s.verdict]} />
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>Sensitivity Heatmap — DSCR (Rent × Vacancy)</Text>
-      <View style={{ marginBottom: 10 }}>
-        <View style={{ flexDirection: "row", marginBottom: 3 }}>
-          <Text style={{ width: 70, fontSize: 7, color: COLORS.slateLight }}></Text>
-          {vacSteps.map((v, i) => (
-            <Text key={i} style={{ width: 60, fontSize: 7, color: COLORS.slateLight, textAlign: "center" }}>
-              Vac {((v - 1) * 100 + (data.vacancyPct ?? 5)).toFixed(0)}%
-            </Text>
-          ))}
-        </View>
-        {rentSteps.map((r, ri) => (
-          <View key={ri} style={{ flexDirection: "row", marginBottom: 2 }}>
-            <Text style={{ width: 70, fontSize: 7.5, color: COLORS.slate, paddingTop: 4 }}>
-              Rent {((r - 1) * 100).toFixed(0)}%
-            </Text>
-            {vacSteps.map((v, vi) => {
-              const s = scenario(r, v, 0, 0);
-              const bg = s.dscr >= 1.35 ? "#dcfce7" : s.dscr >= 1.20 ? "#fef3c7" : s.dscr >= 1.0 ? "#fed7aa" : "#fee2e2";
-              const color = s.dscr >= 1.20 ? COLORS.green : s.dscr >= 1.0 ? COLORS.amber : COLORS.red;
-              return (
-                <View key={vi} style={{ width: 58, marginRight: 2, backgroundColor: bg, padding: 4, alignItems: "center" }}>
-                  <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color }}>{s.dscr.toFixed(2)}</Text>
-                </View>
-              );
-            })}
-          </View>
+        <MultiCol cols={["Scenario", "NOI", "Cash Flow", "DSCR", "Cap Rate", "Rec."]} head />
+        {u.sensitivity.scenarios.map((sc, i) => (
+          <MultiCol
+            key={sc.key}
+            alt={i % 2 === 1}
+            cols={[sc.label, fmt(sc.noi), fmt(sc.annualCashFlow), num(sc.dscr), pct(sc.capRatePct, 1), sc.pass ? "OK" : "FAILS"]}
+          />
         ))}
       </View>
       <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 8, fontStyle: "italic" }}>
-        Green cells indicate DSCR ≥ 1.35 (strong). Yellow indicates 1.20–1.35 (acceptable). Orange indicates 1.0–1.20 (marginal). Red indicates DSCR &lt; 1.0 (failure to cover debt service).
+        "OK" = cash flow ≥ $0 and DSCR ≥ 1.20 under that scenario (per the underwriting engine's canonical pass/fail definition).
+        "FAILS" indicates the deal does not clear that bar under the stressed assumption.
+      </Text>
+
+      <Text style={styles.sectionTitle}>Scenario Groups</Text>
+      <Text style={styles.para}>
+        Scenarios are grouped as: {Array.from(new Set(u.sensitivity.scenarios.map((s) => groupLabel[s.group] ?? s.group))).join(", ")}.
+        Every scenario reruns the full income statement, debt service, and capital stack on the modified assumption — none of the figures
+        above are derived by adjusting NOI or cash flow directly.
       </Text>
 
       <PageFooter firm={firm} />
@@ -970,17 +890,22 @@ function Page6_Stress({ data, firm }: { data: UnderwritingReportData; firm: stri
 
 /* ============================================================
  * PAGE 7 — Rehab & Value-Add
+ * The renovation-category budget split below is explicitly ILLUSTRATIVE
+ * planning content (paint/flooring/kitchen/etc. percentage allocations) —
+ * there is no canonical per-line-item rehab breakdown in the underwriting
+ * engine to defer to. The dollar totals it starts from (rehab budget, ARV,
+ * purchase price, rent) are canonical; the category split itself is not a
+ * financial-model output and is labeled as illustrative.
  * ============================================================ */
 
 function Page7_Rehab({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const rehab = data.rehab;
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-  const lift = arv - data.purchasePrice;
-  const stabilizedRent = data.grossRent * (1 + (data.rentGrowth ?? 3) / 100);
-  const rentLift = stabilizedRent - data.grossRent;
+  const u = data.underwriting;
+  const rehab = u.capital.rehab;
+  const arv = u.inputs.arv && u.inputs.arv > 0 ? u.inputs.arv : u.inputs.purchasePrice;
+  const lift = arv - u.inputs.purchasePrice;
+  const rentLift = u.inputs.monthlyBaseRent * (u.inputs.rentGrowthPct / 100);
   const renoROI = rehab > 0 ? ((lift - rehab) / rehab) * 100 : 0;
 
-  // Heuristic budget split
   const budget: { item: string; pct: number; addValue: number; rentImpact: number; payback: string }[] = [
     { item: "Paint (Interior + Exterior)", pct: 0.08, addValue: 0.10, rentImpact: 0.02, payback: "0–1 yr" },
     { item: "Flooring", pct: 0.15, addValue: 0.14, rentImpact: 0.04, payback: "1–2 yrs" },
@@ -996,20 +921,24 @@ function Page7_Rehab({ data, firm }: { data: UnderwritingReportData; firm: strin
     { item: "Doors", pct: 0.02, addValue: 0.02, rentImpact: 0.00, payback: "cosmetic" },
     { item: "Lighting", pct: 0.02, addValue: 0.02, rentImpact: 0.01, payback: "immediate" },
     { item: "Appliances", pct: 0.03, addValue: 0.03, rentImpact: 0.02, payback: "1–2 yrs" },
-    { item: "Contingency (10%)", pct: 0.10, addValue: 0.00, rentImpact: 0.00, payback: "reserve" },
+    { item: "Contingency", pct: 0.10, addValue: 0.00, rentImpact: 0.00, payback: "reserve" },
   ];
 
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="VII · Rehab & Value-Add" />
       <Text style={styles.pageTitle}>Rehab & Value-Add Analysis</Text>
-      <Text style={styles.pageSub}>Renovation budget · projected value creation · payback</Text>
+      <Text style={styles.pageSub}>Illustrative renovation budget · projected value creation · payback</Text>
 
       {rehab > 0 ? (
         <>
-          <Text style={styles.sectionTitle}>Renovation Budget Allocation</Text>
+          <Text style={styles.sectionTitle}>Illustrative Renovation Budget Allocation</Text>
+          <Text style={{ fontSize: 7.5, color: COLORS.slateLight, marginBottom: 6, fontStyle: "italic" }}>
+            Category splits below are illustrative planning percentages, not underwriting-engine output. Only the total rehab
+            budget ({fmt(rehab)}) is canonical; get contractor bids before relying on any single line.
+          </Text>
           <View style={styles.table}>
-            <MultiCol cols={["Line Item", "Est. Cost", "Value Added", "Rent Impact", "Payback"]} head />
+            <MultiCol cols={["Line Item", "Est. Cost", "Illustrative Value Added", "Rent Impact", "Payback"]} head />
             {budget.map((b, i) => (
               <MultiCol key={b.item} alt={i % 2 === 1}
                 cols={[
@@ -1031,15 +960,14 @@ function Page7_Rehab({ data, firm }: { data: UnderwritingReportData; firm: strin
 
           <Text style={styles.sectionTitle}>Value-Add Summary</Text>
           <View style={styles.kpiGrid}>
-            <KpiBox label="Total Rehab" value={fmt(rehab)} foot="All-in construction budget" />
+            <KpiBox label="Total Rehab" value={fmt(rehab)} foot="Canonical rehab budget (underwriting.capital.rehab)" />
             <KpiBox label="Projected ARV" value={fmt(arv)} foot="Stabilized value" />
-            <KpiBox label="Value Lift" value={fmt(lift)} positive={lift > rehab} foot="ARV − purchase" />
-            <KpiBox label="Renovation ROI" value={pct(renoROI, 1)} positive={renoROI > 20} foot="(Lift − Rehab) ÷ Rehab" />
+            <KpiBox label="Value Lift" value={fmt(lift)} positive={lift > rehab} foot="ARV − purchase price" />
+            <KpiBox label="Illustrative Renovation ROI" value={pct(renoROI, 1)} positive={renoROI > 20} foot="(Lift − Rehab) ÷ Rehab" />
           </View>
           <Text style={styles.para}>
-            The rehab budget of {fmt(rehab)} is projected to unlock {fmt(lift)} in value creation, yielding a renovation-only ROI
+            The rehab budget of {fmt(rehab)} is projected to unlock {fmt(lift)} in value creation, yielding an illustrative renovation-only ROI
             of {pct(renoROI, 1)}. {renoROI > 30 ? "This is a materially accretive value-add profile." : renoROI > 0 ? "Value creation is positive but modest — execution risk warrants close monitoring." : "The current ARV assumption does not support the rehab budget; renovation would be dilutive under these inputs and must be re-scoped or re-priced before proceeding."}
-            {" "}Stabilized rent uplift is projected at {fmt(rentLift)}/month ({fmt(rentLift * 12)}/yr), incorporated into Year-2 income projections.
           </Text>
         </>
       ) : (
@@ -1066,10 +994,16 @@ function Page7_Rehab({ data, firm }: { data: UnderwritingReportData; firm: strin
 
 /* ============================================================
  * PAGE 8 — Risk Analytics
+ * Every Monte Carlo figure is read directly from the MonteCarloResult
+ * distribution objects — no P10/P90 midpoint standing in for median, no
+ * hard-coded probabilities, no VaR/ES/Sharpe recomputed in the PDF.
  * ============================================================ */
 
 function Page8_Risk({ data, firm }: { data: UnderwritingReportData; firm: string }) {
   const mc = data.monteCarlo;
+  const u = data.underwriting;
+  const allFlags = [...u.flags, ...(data.guardrails ?? [])];
+
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="VIII · Risk Analytics" />
@@ -1081,44 +1015,43 @@ function Page8_Risk({ data, firm }: { data: UnderwritingReportData; firm: string
           <Text style={styles.sectionTitle}>Monte Carlo Simulation ({mc.iterations.toLocaleString()} iterations)</Text>
           <View style={styles.table}>
             <MultiCol cols={["Risk Metric", "Value", "Interpretation"]} head />
-            <MultiCol cols={["Expected IRR (Mean)", pct(mc.expectedIRR), "Central-tendency projection"]} />
-            <MultiCol cols={["Median IRR (P50)", pct((mc.irrP10 + mc.irrP90) / 2), "Midpoint of outcomes"]} alt />
-            <MultiCol cols={["Downside IRR (P10)", pct(mc.irrP10), "10% of outcomes below this"]} />
-            <MultiCol cols={["Upside IRR (P90)", pct(mc.irrP90), "10% of outcomes above this"]} alt />
-            <MultiCol cols={["Probability of Negative Year-1 CF", pct(mc.probNegativeCF, 1), mc.probNegativeCF < 15 ? "Low tail risk" : mc.probNegativeCF < 35 ? "Moderate risk" : "Elevated risk"]} />
-            <MultiCol cols={["Est. Prob. DSCR < 1.25", pct(Math.min(100, Math.max(0, mc.probNegativeCF * 1.3)), 1), "Coverage compression risk"]} alt />
-            <MultiCol cols={["Est. Prob. Vacancy > 10%", pct(Math.min(30, Math.max(2, (data.vacancyPct ?? 5) * 0.8)), 1), "Occupancy stress"]} />
-            <MultiCol cols={["Est. Prob. ExpGrowth > RentGrowth", pct(35, 1), "Margin compression risk"]} alt />
+            <MultiCol cols={["Mean IRR", pct(mc.irr.mean), "Central-tendency projection"]} />
+            <MultiCol cols={["Median IRR (P50)", pct(mc.irr.p50), "Midpoint of simulated outcomes"]} alt />
+            <MultiCol cols={["Downside IRR (P10)", pct(mc.irr.p10), "10% of outcomes below this"]} />
+            <MultiCol cols={["Upside IRR (P90)", pct(mc.irr.p90), "10% of outcomes above this"]} alt />
+            <MultiCol cols={["Probability of Negative Year-1 CF", pct(mc.probNegativeCashFlow, 1), mc.probNegativeCashFlow < 15 ? "Low tail risk" : mc.probNegativeCashFlow < 35 ? "Moderate risk" : "Elevated risk"]} />
+            <MultiCol cols={[`Prob. DSCR < ${mc.dscrThreshold.toFixed(2)}x`, pct(mc.probDscrBelowThreshold, 1), "Coverage compression risk"]} alt />
+            <MultiCol cols={[`Prob. IRR > ${mc.targetReturnPct.toFixed(1)}%`, pct(mc.probReturnExceedsTarget, 1), "Probability of exceeding target return"]} />
           </View>
 
           <Text style={styles.sectionTitle}>IRR Distribution</Text>
           <View style={{ marginBottom: 10 }}>
-            <MCHistogram p10={mc.irrP10} p50={(mc.irrP10 + mc.irrP90) / 2} p90={mc.irrP90} mean={mc.expectedIRR} />
+            <MCHistogram p10={mc.irr.p10} p50={mc.irr.p50} p90={mc.irr.p90} mean={mc.irr.mean} />
           </View>
 
-          <Text style={styles.sectionTitle}>Value-at-Risk & Equity Outcomes</Text>
+          <Text style={styles.sectionTitle}>Equity Multiple & Tail Risk</Text>
           <View style={styles.table}>
             <MultiCol cols={["Metric", "Value", "Notes"]} head />
-            <MultiCol cols={["Expected Equity Multiple", `${(1 + mc.expectedIRR / 100 * (data.holdYears ?? 5)).toFixed(2)}x`, "Approx. compounding of mean IRR"]} />
-            <MultiCol cols={["Best-Case Equity Multiple (P90)", `${(1 + mc.irrP90 / 100 * (data.holdYears ?? 5)).toFixed(2)}x`, "Upside envelope"]} alt />
-            <MultiCol cols={["Worst-Case Equity Multiple (P10)", `${(1 + mc.irrP10 / 100 * (data.holdYears ?? 5)).toFixed(2)}x`, "Downside envelope"]} />
-            <MultiCol cols={["Value at Risk (95%)", pct(Math.min(0, mc.irrP10 * 0.9)), "Worst-case annualized loss (95% conf.)"]} alt />
-            <MultiCol cols={["Expected Shortfall (avg tail)", pct(Math.min(0, mc.irrP10 * 0.7)), "Avg of worst-10% outcomes"]} />
-            <MultiCol cols={["Sharpe Ratio", data.guardrails?.some(g => g.code === "SHARPE_OUT_OF_RANGE") ? "Suppressed — see disclosures" : ((mc.expectedIRR - 4.5) / Math.max(0.1, (mc.irrP90 - mc.irrP10) / 2.5631)).toFixed(2), "Risk-adjusted return"]} alt />
+            <MultiCol cols={["Expected Equity Multiple (mean)", `${mc.equityMultiple.mean.toFixed(2)}x`, "Directly from simulated cash-flow paths"]} />
+            <MultiCol cols={["Equity Multiple P10 / P50 / P90", `${mc.equityMultiple.p10.toFixed(2)}x / ${mc.equityMultiple.p50.toFixed(2)}x / ${mc.equityMultiple.p90.toFixed(2)}x`, "Downside / median / upside envelope"]} alt />
+            <MultiCol cols={[`Value at Risk (${mc.cashFlowTailRisk.confidencePct}% conf., annual cash flow)`, fmtSigned(-mc.cashFlowTailRisk.valueAtRisk), `Loss not exceeded ${mc.cashFlowTailRisk.confidencePct}% of the time`]} />
+            <MultiCol cols={[`Expected Shortfall (worst ${100 - mc.cashFlowTailRisk.confidencePct}% tail)`, fmtSigned(-mc.cashFlowTailRisk.expectedShortfall), `Average loss within the worst ${100 - mc.cashFlowTailRisk.confidencePct}% of outcomes`]} alt />
+            <MultiCol cols={["Sharpe Ratio", mc.sharpeRatio === null ? "Insufficient observations" : mc.sharpeRatio.toFixed(2), `Risk-adjusted return vs. ${mc.riskFreeRatePct}% risk-free rate`]} />
+            <MultiCol cols={["Sortino Ratio", mc.sortinoRatio === null ? "Insufficient observations" : mc.sortinoRatio.toFixed(2), "Downside-only risk-adjusted return"]} alt />
           </View>
         </>
       ) : (
         <Text style={styles.para}>
-          Monte Carlo simulation was not executed in this underwriting session. Run the Risk Analyzer with a minimum of 5,000 iterations
-          to attach probabilistic distributions, downside percentiles, and Value-at-Risk metrics before making a final investment decision.
+          Monte Carlo simulation was not executed in this underwriting session. Run the Risk Analyzer to attach probabilistic
+          distributions, downside percentiles, and Value-at-Risk metrics before making a final investment decision.
         </Text>
       )}
 
-      {data.guardrails && data.guardrails.length > 0 && (
+      {allFlags.length > 0 && (
         <>
           <Text style={styles.sectionTitle}>Underwriting Guardrails & Disclosures</Text>
-          {data.guardrails.map((g) => (
-            <View key={g.code} style={{
+          {allFlags.map((g, idx) => (
+            <View key={`${g.code}-${idx}`} style={{
               borderLeftWidth: 2.5,
               borderLeftColor: g.severity === "critical" ? COLORS.red : g.severity === "warning" ? COLORS.amber : COLORS.slate,
               backgroundColor: COLORS.surface,
@@ -1143,97 +1076,96 @@ function Page8_Risk({ data, firm }: { data: UnderwritingReportData; firm: string
 
 /* ============================================================
  * PAGE 9 — Exit Strategy
+ * Every scenario is a direct lookup into underwriting.projection.exitScenarios
+ * by holdYears. No local amortization, sale-price, tax, IRR, or equity-
+ * multiple calculation. If a requested holding period isn't in the
+ * canonical exit-scenario set, the section says so rather than fabricating one.
  * ============================================================ */
 
+function findExit(u: UnderwritingResult, years: number) {
+  return u.projection.exitScenarios.find((e) => e.holdYears === years);
+}
+
 function Page9_Exit({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const hold = data.holdYears ?? 5;
-  const appr = (data.appreciation ?? 3) / 100;
-  const rate = (data.interestRate ?? 6.5) / 100 / 12;
-  const arv = data.arv && data.arv > 0 ? data.arv : data.purchasePrice;
-
-  // Balance at hold-end
-  let bal = data.loanAmount;
-  for (let m = 0; m < hold * 12; m++) {
-    const i = bal * rate;
-    bal -= Math.max(0, data.debtService - i);
-    if (bal < 0) bal = 0;
-  }
-
-  const salePrice = arv * Math.pow(1 + appr, hold);
-  const sellingCosts = salePrice * 0.07;
-  const capGainsTax = Math.max(0, (salePrice - sellingCosts - data.purchasePrice - data.rehab)) * 0.20;
-  const netProceedsSell = salePrice - sellingCosts - bal - capGainsTax;
-
-  // Approximate cumulative CF (compounded at rent growth)
-  const projCF = (data.projections && data.projections.length >= hold)
-    ? data.projections.slice(0, hold).reduce((a, b) => a + b.cashFlow, 0)
-    : (data.netCashFlow * 12) * hold;
-
-  const totalReturnSell = projCF + netProceedsSell - data.totalCashIn;
-  const equityMultSell = data.totalCashIn > 0 ? (projCF + netProceedsSell) / data.totalCashIn : 0;
-  const irrSell = data.totalCashIn > 0 ? (Math.pow((projCF + netProceedsSell) / data.totalCashIn, 1 / hold) - 1) * 100 : 0;
-  const avgAnnSell = hold > 0 ? (totalReturnSell / hold) / Math.max(1, data.totalCashIn) * 100 : 0;
-
-  // Refi at year 3 (75% of appreciated value)
-  const refiValue = arv * Math.pow(1 + appr, 3);
-  const refiLoan = refiValue * 0.75;
-  let bal3 = data.loanAmount;
-  for (let m = 0; m < 36; m++) { const i = bal3 * rate; bal3 -= Math.max(0, data.debtService - i); }
-  const refiCashOut = Math.max(0, refiLoan - bal3);
-
-  // Long-term hold at hold+5
-  const longHoldYrs = hold + 5;
-  const longSale = arv * Math.pow(1 + appr, longHoldYrs);
-  let bal2 = data.loanAmount;
-  for (let m = 0; m < longHoldYrs * 12; m++) { const i = bal2 * rate; bal2 -= Math.max(0, data.debtService - i); if (bal2 < 0) bal2 = 0; }
-  const longEquity = longSale - bal2;
-
-  // 1031: same as sell but no tax
-  const netProceeds1031 = salePrice - sellingCosts - bal;
+  const u = data.underwriting;
+  const primaryYears = Math.max(1, Math.round(u.inputs.holdYears));
+  const primary = findExit(u, primaryYears);
+  const longHold = findExit(u, 35) ?? findExit(u, primaryYears + 5);
 
   return (
     <Page size="LETTER" style={styles.page}>
       <PageHeader firm={firm} title="IX · Exit Strategy Analysis" />
       <Text style={styles.pageTitle}>Exit Strategy Analysis</Text>
-      <Text style={styles.pageSub}>Sale · refinance · long-term hold · 1031 exchange</Text>
+      <Text style={styles.pageSub}>Every scenario below is its own independently-computed underwriting.projection.exitScenarios entry</Text>
 
-      <Text style={styles.sectionTitle}>Scenario 1 — Sale at Year {hold}</Text>
+      {primary ? (
+        <>
+          <Text style={styles.sectionTitle}>Scenario — Sale at Year {primary.holdYears} ({primary.label})</Text>
+          <View style={styles.table}>
+            <Row label="Property Value at Exit" value={fmt(primary.propertyValue)} />
+            <Row label="Gross Sale Price" value={fmt(primary.grossSalePrice)} alt />
+            <Row label="Exit Method" value={primary.method === "exit-cap" ? "Exit cap rate" : "Appreciation"} />
+            <Row label="Selling Costs" value={`(${fmt(primary.sellingCosts)})`} alt tone="neg" />
+            <Row label="Remaining Loan Balance" value={`(${fmt(primary.loanPayoff)})`} tone="neg" />
+            <Row label="Net Proceeds Before Tax" value={fmt(primary.netProceedsPreTax)} alt />
+            <Row label="Capital Gains Tax" value={`(${fmt(primary.capitalGainsTax)})`} tone="neg" />
+            <Row label="Depreciation Recapture Tax" value={`(${fmt(primary.depreciationRecaptureTax)})`} alt tone="neg" />
+            <Row label="Net Proceeds After Tax" value={fmt(primary.netProceedsAfterTax)} bold />
+            <Row label="Cumulative Operating Cash Flow" value={fmt(primary.cumulativeCashFlow)} alt />
+            <Row label="Pre-Tax IRR" value={pct(primary.irrPreTaxPct)} tone={(primary.irrPreTaxPct ?? 0) > 10 ? "pos" : "neg"} />
+            <Row label="After-Tax IRR" value={pct(primary.irrAfterTaxPct)} alt tone={(primary.irrAfterTaxPct ?? 0) > 10 ? "pos" : "neg"} />
+            <Row label="Equity Multiple" value={primary.equityMultiple === null ? "N/A" : `${primary.equityMultiple.toFixed(2)}x`} />
+            <Row label="Annualized Return (CAGR of equity multiple)" value={pct(primary.annualizedReturnPct)} alt />
+          </View>
+        </>
+      ) : (
+        <Text style={styles.para}>
+          No canonical exit scenario exists for the entered {primaryYears}-year holding period. This should not happen —
+          verify the underwriting engine populated projection.exitScenarios before generating this report.
+        </Text>
+      )}
+
+      <Text style={styles.sectionTitle}>All Canonical Exit Scenarios</Text>
       <View style={styles.table}>
-        <Row label="Projected Sale Price" value={fmt(salePrice)} />
-        <Row label="Selling Costs (7%)" value={`(${fmt(sellingCosts)})`} alt tone="neg" />
-        <Row label="Remaining Loan Balance" value={`(${fmt(bal)})`} tone="neg" />
-        <Row label="Capital Gains Tax (est. 20%)" value={`(${fmt(capGainsTax)})`} alt tone="neg" />
-        <Row label="Net Equity Proceeds" value={fmt(netProceedsSell)} bold />
-        <Row label="Cumulative Operating Cash Flow" value={fmt(projCF)} alt />
-        <Row label="IRR (annualized)" value={pct(irrSell)} tone={irrSell > 10 ? "pos" : "neg"} />
-        <Row label="Equity Multiple" value={`${equityMultSell.toFixed(2)}x`} alt />
-        <Row label="Average Annual Return" value={pct(avgAnnSell)} />
+        <MultiCol cols={["Holding Period", "Property Value", "Net Proceeds (Pre-Tax)", "Equity Multiple", "Pre-Tax IRR"]} head />
+        {[...u.projection.exitScenarios].sort((a, b) => a.holdYears - b.holdYears).map((s, i) => (
+          <MultiCol
+            key={s.holdYears}
+            alt={i % 2 === 1}
+            cols={[
+              `Year ${s.holdYears}${s.holdYears === primaryYears ? " (entered hold)" : ""}`,
+              fmt(s.propertyValue),
+              fmt(s.netProceedsPreTax),
+              s.equityMultiple === null ? "N/A" : `${s.equityMultiple.toFixed(2)}x`,
+              pct(s.irrPreTaxPct),
+            ]}
+          />
+        ))}
       </View>
 
-      <Text style={styles.sectionTitle}>Scenario 2 — Cash-Out Refinance at Year 3</Text>
-      <View style={styles.table}>
-        <Row label="Refi Appraised Value" value={fmt(refiValue)} />
-        <Row label="New Loan (75% LTV)" value={fmt(refiLoan)} alt />
-        <Row label="Existing Balance Paid Off" value={`(${fmt(bal3)})`} tone="neg" />
-        <Row label="Tax-Free Cash-Out" value={fmt(refiCashOut)} bold tone="pos" />
-        <Row label="Retained Equity Post-Refi" value={fmt(refiValue - refiLoan)} alt />
-      </View>
+      {longHold && longHold.holdYears !== primaryYears && (
+        <>
+          <Text style={styles.sectionTitle}>Long-Term Hold — Year {longHold.holdYears}</Text>
+          <View style={styles.table}>
+            <Row label="Projected Property Value" value={fmt(longHold.propertyValue)} />
+            <Row label="Remaining Loan Balance" value={fmt(longHold.loanPayoff)} alt />
+            <Row label="Projected Equity" value={fmt(longHold.propertyValue - longHold.loanPayoff)} bold tone="pos" />
+            <Row label="Cumulative Operating Cash Flow" value={fmt(longHold.cumulativeCashFlow)} alt />
+          </View>
+        </>
+      )}
 
-      <Text style={styles.sectionTitle}>Scenario 3 — Long-Term Hold ({longHoldYrs} yrs)</Text>
-      <View style={styles.table}>
-        <Row label="Projected Year-10 Value" value={fmt(longSale)} />
-        <Row label="Est. Remaining Balance" value={fmt(bal2)} alt />
-        <Row label="Projected Equity" value={fmt(longEquity)} bold tone="pos" />
-        <Row label="Cash Flow (cumulative, est.)" value={fmt(projCF * (longHoldYrs / hold))} alt />
-      </View>
-
-      <Text style={styles.sectionTitle}>Scenario 4 — 1031 Exchange at Year {hold}</Text>
-      <View style={styles.table}>
-        <Row label="Net Proceeds (tax-deferred)" value={fmt(netProceeds1031)} bold tone="pos" />
-        <Row label="Tax Deferral Benefit vs. Sale" value={fmt(capGainsTax)} alt tone="pos" />
-        <Row label="Reinvestment Requirement" value="100% of equity into like-kind property" />
-        <Row label="Best Suited For" value="Investors compounding portfolio without tax friction" alt />
-      </View>
+      <Text style={styles.sectionTitle}>1031 Exchange — Year {primaryYears}</Text>
+      {primary ? (
+        <View style={styles.table}>
+          <Row label="Net Proceeds Before Tax (tax-deferred if exchanged)" value={fmt(primary.netProceedsPreTax)} bold tone="pos" />
+          <Row label="Tax Deferral Benefit vs. Outright Sale" value={fmt(primary.capitalGainsTax + primary.depreciationRecaptureTax)} alt tone="pos" />
+          <Row label="Reinvestment Requirement" value="100% of equity into like-kind property" />
+          <Row label="Best Suited For" value="Investors compounding portfolio without tax friction" alt />
+        </View>
+      ) : (
+        <Text style={styles.para}>Not available — see note above.</Text>
+      )}
 
       <PageFooter firm={firm} />
     </Page>
@@ -1245,10 +1177,13 @@ function Page9_Exit({ data, firm }: { data: UnderwritingReportData; firm: string
  * ============================================================ */
 
 function Page10_Memo({ data, firm }: { data: UnderwritingReportData; firm: string }) {
-  const rec = computeRecommendations(data);
-  const dscrText = data.dscr >= 1.25 ? "adequate coverage" : data.dscr >= 1.0 ? "thin coverage" : "insufficient coverage";
-  const cfText = data.netCashFlow >= 0 ? "generates positive first-year cash flow" : "produces negative first-year cash flow";
-  const mcNeg = data.monteCarlo?.probNegativeCF ?? 20;
+  const u = data.underwriting;
+  const rec = computeRecommendations(u, data.monteCarlo, data.dci);
+  const dscr = u.metrics.dscr ?? 0;
+  const dscrText = dscr >= 1.25 ? "adequate coverage" : dscr >= 1.0 ? "thin coverage" : "insufficient coverage";
+  const cfText = u.cashFlow.monthlyAfterCapex >= 0 ? "generates positive first-year cash flow" : "produces negative first-year cash flow";
+  const mcNeg = data.monteCarlo?.probNegativeCashFlow ?? 20;
+  const arvDisplay = u.inputs.arv && u.inputs.arv > 0 ? u.inputs.arv : u.inputs.purchasePrice;
 
   return (
     <Page size="LETTER" style={styles.page}>
@@ -1258,30 +1193,31 @@ function Page10_Memo({ data, firm }: { data: UnderwritingReportData; firm: strin
 
       <Text style={styles.sectionTitle}>Investment Thesis</Text>
       <Text style={styles.para}>
-        {data.propertyName || "The subject property"} is underwritten as a {data.rehab > 0 ? "value-add" : "stabilized income"} acquisition
-        at a purchase basis of {fmt(data.purchasePrice)}. The transaction {cfText} of {fmt(data.netCashFlow)}/month
-        and delivers {pct(data.cashOnCash)} cash-on-cash return on {fmt(data.totalCashIn)} of invested equity.
-        Debt service is provided with {dscrText} at {data.dscr.toFixed(2)}x DSCR.
+        {data.propertyName || "The subject property"} is underwritten as a {u.capital.rehab > 0 ? "value-add" : "stabilized income"} acquisition
+        at a purchase basis of {fmt(u.inputs.purchasePrice)}. The transaction {cfText} of {fmt(u.cashFlow.monthlyAfterCapex)}/month
+        and delivers {pct(u.metrics.cashOnCashAfterCapexPct)} cash-on-cash return on {fmt(u.capital.cashInvested)} of invested equity.
+        Debt service is provided with {dscrText} at {num(u.metrics.dscr)}x DSCR.
       </Text>
 
       <Text style={styles.sectionTitle}>Primary Strengths</Text>
-      <Text style={styles.bullet}>• {data.dscr >= 1.25 ? `DSCR of ${data.dscr.toFixed(2)}x exceeds institutional 1.25x threshold` : "DSCR does not meet institutional threshold — see weaknesses"}</Text>
-      <Text style={styles.bullet}>• {data.cashOnCash >= 6 ? `Cash-on-cash return of ${pct(data.cashOnCash)} is competitive for the risk profile` : `Cash-on-cash of ${pct(data.cashOnCash)} — modest`}</Text>
-      <Text style={styles.bullet}>• {data.capRate >= 6 ? `Cap rate of ${pct(data.capRate)} provides margin against value compression` : `Cap rate of ${pct(data.capRate)} is compressed — appreciation-dependent`}</Text>
+      <Text style={styles.bullet}>• {dscr >= 1.25 ? `DSCR of ${num(u.metrics.dscr)}x exceeds institutional 1.25x threshold` : "DSCR does not meet institutional threshold — see weaknesses"}</Text>
+      <Text style={styles.bullet}>• {(u.metrics.cashOnCashAfterCapexPct ?? 0) >= 6 ? `Cash-on-cash return of ${pct(u.metrics.cashOnCashAfterCapexPct)} is competitive for the risk profile` : `Cash-on-cash of ${pct(u.metrics.cashOnCashAfterCapexPct)} — modest`}</Text>
+      <Text style={styles.bullet}>• {(u.metrics.capRatePct ?? 0) >= 6 ? `Cap rate of ${pct(u.metrics.capRatePct)} provides margin against value compression` : `Cap rate of ${pct(u.metrics.capRatePct)} is compressed — appreciation-dependent`}</Text>
       <Text style={styles.bullet}>• {mcNeg < 20 ? `Monte Carlo shows only ${pct(mcNeg, 1)} probability of negative Year-1 CF` : "Probabilistic downside is elevated — see weaknesses"}</Text>
 
       <Text style={styles.sectionTitle}>Primary Weaknesses & Execution Risks</Text>
-      {data.dscr < 1.25 && <Text style={styles.bullet}>• DSCR at {data.dscr.toFixed(2)}x sits below the lender-preferred 1.25x cushion; refinance risk elevated in a rate-up environment.</Text>}
-      {data.netCashFlow < 0 && <Text style={styles.bullet}>• Negative first-year cash flow of {fmt(data.netCashFlow)}/mo requires supplemental capital contributions.</Text>}
+      {dscr < 1.25 && <Text style={styles.bullet}>• DSCR at {num(u.metrics.dscr)}x sits below the lender-preferred 1.25x cushion; refinance risk elevated in a rate-up environment.</Text>}
+      {u.cashFlow.monthlyAfterCapex < 0 && <Text style={styles.bullet}>• Negative first-year cash flow of {fmt(u.cashFlow.monthlyAfterCapex)}/mo requires supplemental capital contributions.</Text>}
       {mcNeg >= 25 && <Text style={styles.bullet}>• Elevated probability of negative Year-1 cash flow ({pct(mcNeg, 1)}) under Monte Carlo modeling.</Text>}
-      {data.rehab > 0 && <Text style={styles.bullet}>• Construction execution risk on {fmt(data.rehab)} rehab scope; cost and timeline overruns common.</Text>}
+      {u.capital.rehab > 0 && <Text style={styles.bullet}>• Construction execution risk on {fmt(u.capital.rehab)} rehab scope; cost and timeline overruns common.</Text>}
+      {u.validationErrors.length > 0 && <Text style={styles.bullet}>• Underwriting reconciliation flagged {u.validationErrors.length} issue(s): {u.validationErrors.join("; ")}.</Text>}
       <Text style={styles.bullet}>• Market data (rent comps, vacancy, appreciation) has not been independently verified within this report.</Text>
       <Text style={styles.bullet}>• Physical property condition assumes inspection findings will not reveal additional deferred maintenance.</Text>
 
       <Text style={styles.sectionTitle}>Collateral Quality & Income Stability</Text>
       <Text style={styles.para}>
         Collateral is a single-asset residential rental property. Income stability depends on tenant quality, local rental demand, and the
-        rent assumption's alignment with market. The current underwriting {(data.vacancyPct ?? 5) < 5 ? "assumes aggressive vacancy below the 5–8% stabilized market benchmark, potentially overstating income stability" : "uses a market-consistent vacancy assumption"}.
+        rent assumption's alignment with market. The current underwriting {u.inputs.vacancyPct < 5 ? "assumes aggressive vacancy below the 5–8% stabilized market benchmark, potentially overstating income stability" : "uses a market-consistent vacancy assumption"}.
         The vast majority of income is derived from a single lease, concentrating tenant credit risk.
       </Text>
 
@@ -1293,11 +1229,11 @@ function Page10_Memo({ data, firm }: { data: UnderwritingReportData; firm: strin
       </View>
 
       <Text style={styles.sectionTitle}>Conditions Required Before Funding</Text>
-      <Text style={styles.bullet}>• Independent third-party appraisal supporting the ARV of {fmt(data.arv && data.arv > 0 ? data.arv : data.purchasePrice)}.</Text>
+      <Text style={styles.bullet}>• Independent third-party appraisal supporting the ARV of {fmt(arvDisplay)}.</Text>
       <Text style={styles.bullet}>• Property inspection confirming no material undisclosed deferred maintenance.</Text>
-      <Text style={styles.bullet}>• Verified rent comparables corroborating the {fmt(data.grossRent)}/month rental assumption.</Text>
+      <Text style={styles.bullet}>• Verified rent comparables corroborating the {fmt(u.inputs.monthlyBaseRent)}/month rental assumption.</Text>
       <Text style={styles.bullet}>• Title, environmental, and flood-zone due diligence cleared.</Text>
-      {data.rehab > 0 && <Text style={styles.bullet}>• Contractor bids and detailed rehab scope of work within 5% of the {fmt(data.rehab)} budget.</Text>}
+      {u.capital.rehab > 0 && <Text style={styles.bullet}>• Contractor bids and detailed rehab scope of work within 5% of the {fmt(u.capital.rehab)} budget.</Text>}
       <Text style={styles.bullet}>• Borrower liquidity of at least 6 months' debt service in reserve post-closing.</Text>
 
       <Text style={styles.sectionTitle}>Underwriting Conclusion</Text>
@@ -1313,7 +1249,7 @@ function Page10_Memo({ data, firm }: { data: UnderwritingReportData; firm: strin
 }
 
 /* ============================================================
- * AI MEMO COVER PAGES (unchanged legacy)
+ * AI MEMO COVER PAGES (unchanged legacy — narrative text only, no financial calcs)
  * ============================================================ */
 
 const memoStyles = StyleSheet.create({
@@ -1357,7 +1293,7 @@ function MemoCoverPages({ data, firm, today }: { data: UnderwritingReportData; f
         <Text style={memoStyles.body}>{memo.financialAnalysis}</Text>
         <View style={memoStyles.footer} fixed>
           <Text style={memoStyles.footerText}>{firm.toUpperCase()}  ·  COVER SHEET</Text>
-          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} / ${totalPages}`} />
+          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }: any) => `PAGE ${pageNumber} / ${totalPages}`} />
         </View>
       </Page>
       <Page size="LETTER" style={memoStyles.page}>
@@ -1371,7 +1307,7 @@ function MemoCoverPages({ data, firm, today }: { data: UnderwritingReportData; f
         <Text style={memoStyles.body}>{memo.valueAddRecommendations}</Text>
         <View style={memoStyles.footer} fixed>
           <Text style={memoStyles.footerText}>{firm.toUpperCase()}  ·  PORTFOLIO SUMMARY</Text>
-          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} / ${totalPages}`} />
+          <Text style={memoStyles.footerText} render={({ pageNumber, totalPages }: any) => `PAGE ${pageNumber} / ${totalPages}`} />
         </View>
       </Page>
     </>
