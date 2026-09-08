@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { calculateMortgage, formatCurrency, formatPercent, findBreakeven, runMonteCarlo } from "@/lib/calculations";
-import { runSimulation } from "@/lib/monteCarlo";
+import { computeUnderwriting, pct as pctOf, type UnderwritingInputs } from "@/lib/underwriting";
+import { runUnderwritingMonteCarlo } from "@/lib/underwritingMonteCarlo";
 import MetricCard from "@/components/MetricCard";
 import SummaryBar from "@/components/SummaryBar";
 import ModeToggle, { type Mode } from "@/components/ModeToggle";
@@ -293,7 +294,7 @@ function DealAnalyzerTab() {
           { label: "ROI (CoC)", value: formatPercent(results.roi) },
           { label: "Cap Rate", value: formatPercent(results.capRate) },
           { label: "Cash Flow", value: `${formatCurrency(results.annualCF)}/yr` },
-          { label: "Score", value: `${results.score.toFixed(0)}/100` },
+          { label: "Score", value: `${uw.score.total.toFixed(0)}/100` },
         ]} />
 
         <GuardrailBanner flags={guardrails.flags} />
@@ -315,7 +316,7 @@ function DealAnalyzerTab() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <MetricCard label="Total Cash In" value={formatCurrency(results.cashIn)} subtitle="Down + closing + rehab"
-            formula="(Price × Down%) + Rehab + (Price × Closing%)" />
+            formula="Total Project Cost − Loan Amount" formulaNote="Sources & uses: purchase, closing, fees, rehab, holding, inspection, appraisal" />
           <MetricCard label="Mortgage" value={`${formatCurrency(results.mortgage + results.pmi)}/mo`} subtitle={results.pmi > 0 ? `incl. ${formatCurrency(results.pmi)} PMI` : "P&I"}
             formula="P × [r(1+r)^n] / [(1+r)^n − 1]" formulaNote="r = monthly rate, n = term in months" />
           <MetricCard label="NOI" value={`${formatCurrency(results.noi)}/yr`}
@@ -334,19 +335,18 @@ function DealAnalyzerTab() {
                 formula="Gross Income × 50%" formulaNote="Quick sanity check on operating expenses" />
               <MetricCard label="Payback" value={results.payback ? `${results.payback.toFixed(1)} yrs` : "∞"}
                 formula="Total Cash In ÷ Annual Cash Flow" />
-              <MetricCard label="5-yr Equity Mult." value={`${results.equityMultiple5.toFixed(2)}x`} subtitle="total return / cash in" variant={results.equityMultiple5 >= 2 ? "success" : "default"}
-                formula="(Cumulative CF + Year-5 Equity) ÷ Cash In" formulaNote="Includes amortization and appreciation" />
-              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.noi / 12 > 0 ? (rent + otherIncome) - results.noi / 12 : 0)}/mo`}
-                formula="Gross Income − (NOI ÷ 12)" />
-              <MetricCard label="Break-even Occ." value={`${Math.max(0, Math.min(100, ((results.mortgage + results.pmi) * 12 / Math.max(1, (rent + otherIncome) * 12)) * 100)).toFixed(0)}%`} subtitle="to cover debt"
-                formula="Annual Debt Service ÷ Annual Gross Income" />
+              <MetricCard label="5-yr Equity Mult." value={results.equityMultiple5 === null ? "n/a" : `${results.equityMultiple5.toFixed(2)}x`} subtitle="distributions / capital in" variant={(results.equityMultiple5 ?? 0) >= 2 ? "success" : "default"}
+                formula="Total investor distributions ÷ contributed capital" formulaNote="Year-5 exit, from the canonical amortization and exit model" />
+              <MetricCard label="Year-1 OpEx" value={`${formatCurrency(results.opExMonthly)}/mo`}
+                formula="Total operating expenses ÷ 12" />
+              <MetricCard label="Break-even Occ." value={results.breakEvenOccupancy === null ? "n/a" : `${results.breakEvenOccupancy.toFixed(0)}%`} subtitle="to cover debt + OpEx"
+                formula="(OpEx + Debt Service) ÷ Gross Potential Income" />
             </>
           )}
         </div>
 
         <DealScorePanel
-          score={results.score}
-          breakdown={results.scoreBreakdown}
+          dealScore={uw.score}
           inputs={{
             roi: results.roi,
             capRate: results.capRate,
