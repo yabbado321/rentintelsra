@@ -37,7 +37,6 @@ const DEAL: Partial<UnderwritingInputs> = {
 
 describe("debt primitives", () => {
   it("computes a level mortgage payment", () => {
-    // $240,000 @ 6% / 30yr = $1,438.92
     expect(monthlyPayment(240000, 6, 30)).toBeCloseTo(1438.92, 1);
   });
 
@@ -57,7 +56,6 @@ describe("debt primitives", () => {
   });
 
   it("computes IRR of a known stream", () => {
-    // -1000 then 5x 300 => ~15.2%
     const r = irr([-1000, 300, 300, 300, 300, 300]);
     expect(r).not.toBeNull();
     expect((r as number) * 100).toBeCloseTo(15.24, 1);
@@ -100,9 +98,23 @@ describe("core metrics", () => {
     expect(r.metrics.yieldOnCostPct as number).toBeLessThan(r.metrics.capRatePct as number);
   });
 
-  it("cash invested = down + closing + rehab + financing - credits", () => {
-    expect(r.capital.cashInvested).toBeCloseTo(60000 + 9000 + 20000, 6);
-    expect(r.capital.allInCost).toBeCloseTo(300000 + 20000 + 9000, 6);
+  it("cash invested = down + closing + rehab + rehab contingency + financing costs + holding + inspection + appraisal - credits (Total Project Cost formula, spec §5)", () => {
+    // Independently recomputed from DEAL + DEFAULT_INPUTS acquisition-cost
+    // conventions — NOT copied from capitalFor()'s implementation, so this
+    // actually validates the formula rather than echoing it.
+    const loanAmt = 300000 * 0.8; // 240,000
+    const monthlyPI = monthlyPayment(loanAmt, 6, 30);
+    const rehabContingency = 20000 * 0.10; // DEFAULT_INPUTS.rehabContingencyPct
+    const loanFees = loanAmt * 0.01;       // DEFAULT_INPUTS.loanFeesPct
+    const holdingCosts = monthlyPI * 2;    // DEFAULT_INPUTS.holdingMonths
+    const inspection = 500;                // DEFAULT_INPUTS.inspectionFee
+    const appraisal = 650;                 // DEFAULT_INPUTS.appraisalFee
+    const expectedCashInvested =
+      60000 + 9000 + 20000 + rehabContingency + loanFees + holdingCosts + inspection + appraisal;
+    expect(r.capital.cashInvested).toBeCloseTo(expectedCashInvested, 2);
+    expect(r.capital.allInCost).toBeCloseTo(expectedCashInvested + loanAmt, 2);
+    // Identity from spec §5: loan + investor equity = total project cost.
+    expect(r.capital.loanAmount + r.capital.investorEquity).toBeCloseTo(r.capital.totalProjectCost, 2);
   });
 
   it("DSCR, debt yield, LTV and GRM", () => {
@@ -234,7 +246,13 @@ describe("edge cases", () => {
       ...DEAL, rehabBudget: 0, hoaMonthly: 0, management: pct(0), otherIncome: {},
     });
     expect(r.income.otherIncomeAnnual).toBe(0);
-    expect(r.capital.allInCost).toBeCloseTo(309000, 6);
+    const loanAmt = 300000 * 0.8;
+    const monthlyPI = monthlyPayment(loanAmt, 6, 30);
+    const loanFees = loanAmt * 0.01;
+    const holdingCosts = monthlyPI * 2;
+    // No rehab => no rehab contingency, but financing/holding/inspection/appraisal still apply.
+    const expectedAllInCost = 300000 + 9000 + loanFees + holdingCosts + 500 + 650;
+    expect(r.capital.allInCost).toBeCloseTo(expectedAllInCost, 2);
     expect(r.expenses.lines.some((l) => l.key === "management")).toBe(false);
   });
 
@@ -302,7 +320,12 @@ describe("reconciliation panel", () => {
     expect(find("Effective Gross Income")).toBeCloseTo(r.income.effectiveGrossIncomeAnnual, 6);
     expect(find("Net Operating Income")).toBeCloseTo(r.noiAnnual, 6);
     expect(find("Cash Flow After CapEx")).toBeCloseTo(r.cashFlow.annualAfterCapex, 6);
-    expect(find("Total Cash Invested")).toBeCloseTo(r.capital.cashInvested, 6);
+    // Canonical label per the `capital` struct's own docs is "Investor Equity /
+    // Cash Invested" — asserting on the value via r.capital.cashInvested
+    // directly (rather than a hardcoded label string) so this doesn't silently
+    // stop testing anything if the label copy changes again.
+    const cashInvestedLine = r.reconciliation.find((l) => l.label.includes("Cash Invested"));
+    expect(cashInvestedLine?.value as number).toBeCloseTo(r.capital.cashInvested, 6);
   });
 });
 
@@ -323,5 +346,169 @@ describe("monte carlo uses the same engine", () => {
     const mc = runUnderwritingMonteCarlo(DEAL, { iterations: 300 });
     expect(mc.irr.stdev).toBeGreaterThan(0);
     expect(mc.irr.p95).toBeGreaterThan(mc.irr.p5);
+  });
+
+  it("exposes p25/p75 in addition to the original percentiles", () => {
+    const mc = runUnderwritingMonteCarlo(DEAL, { iterations: 200 });
+    expect(mc.irr.p25).toBeLessThanOrEqual(mc.irr.p50);
+    expect(mc.irr.p75).toBeGreaterThanOrEqual(mc.irr.p50);
+  });
+
+  it("VaR and Expected Shortfall share one confidence level, and ES >= VaR", () => {
+    const mc = runUnderwritingMonteCarlo(DEAL, { iterations: 500, varConfidencePct: 95 });
+    expect(mc.cashFlowTailRisk.confidencePct).toBe(95);
+    expect(mc.cashFlowTailRisk.expectedShortfall).toBeGreaterThanOrEqual(mc.cashFlowTailRisk.valueAtRisk);
+  });
+
+  it("Sharpe/Sortino are null below the minimum-observation floor, populated above it", () => {
+    const tiny = runUnderwritingMonteCarlo(DEAL, { iterations: 10 });
+    expect(tiny.sharpeRatio).toBeNull();
+    expect(tiny.sortinoRatio).toBeNull();
+    const plenty = runUnderwritingMonteCarlo(DEAL, { iterations: 500 });
+    expect(plenty.sharpeRatio).not.toBeNull();
+  });
+
+  it("probDscrBelowThreshold and probReturnExceedsTarget respond to their thresholds", () => {
+    const strict = runUnderwritingMonteCarlo(DEAL, { iterations: 300, dscrThreshold: 100 }); // absurdly high floor
+    expect(strict.probDscrBelowThreshold).toBeGreaterThan(50);
+    const lenient = runUnderwritingMonteCarlo(DEAL, { iterations: 300, dscrThreshold: 0 });
+    expect(lenient.probDscrBelowThreshold).toBeCloseTo(0, 0);
+  });
+});
+
+describe("canonical stress scenario set (spec §9)", () => {
+  const r = computeUnderwriting(DEAL);
+  const base = r.sensitivity.scenarios.find((s) => s.key === "base")!;
+
+  it("includes every required stress row", () => {
+    const requiredKeys = [
+      "base", "rent-5", "rent-10", "rent-15",
+      "vac-10", "vac-15", "vac-20",
+      "opex-10", "opex-20",
+      "rate+1", "rate+2",
+      "mgmt", "rehab+25",
+    ];
+    for (const key of requiredKeys) {
+      expect(r.sensitivity.scenarios.some((s) => s.key === key)).toBe(true);
+    }
+  });
+
+  it("higher vacancy cannot increase NOI or cash flow (monotonic vs base)", () => {
+    const v10 = r.sensitivity.scenarios.find((s) => s.key === "vac-10")!;
+    const v15 = r.sensitivity.scenarios.find((s) => s.key === "vac-15")!;
+    const v20 = r.sensitivity.scenarios.find((s) => s.key === "vac-20")!;
+    expect(v10.noi).toBeLessThanOrEqual(base.noi);
+    expect(v15.noi).toBeLessThanOrEqual(v10.noi);
+    expect(v20.noi).toBeLessThanOrEqual(v15.noi);
+    expect(v20.annualCashFlow).toBeLessThanOrEqual(base.annualCashFlow);
+  });
+
+  it("higher opex cannot increase NOI or cash flow", () => {
+    const e10 = r.sensitivity.scenarios.find((s) => s.key === "opex-10")!;
+    const e20 = r.sensitivity.scenarios.find((s) => s.key === "opex-20")!;
+    expect(e10.noi).toBeLessThan(base.noi);
+    expect(e20.noi).toBeLessThan(e10.noi);
+    expect(e20.annualCashFlow).toBeLessThan(base.annualCashFlow);
+  });
+
+  it("higher interest rate cannot increase cash flow, and never touches NOI", () => {
+    const r1 = r.sensitivity.scenarios.find((s) => s.key === "rate+1")!;
+    const r2 = r.sensitivity.scenarios.find((s) => s.key === "rate+2")!;
+    expect(r1.noi).toBeCloseTo(base.noi, 6);
+    expect(r1.debtService).toBeGreaterThan(base.debtService);
+    expect(r2.debtService).toBeGreaterThan(r1.debtService);
+    expect(r1.annualCashFlow).toBeLessThan(base.annualCashFlow);
+  });
+
+  it("lower rent cannot increase NOI (unchanged expenses)", () => {
+    const rent5 = r.sensitivity.scenarios.find((s) => s.key === "rent-5")!;
+    const rent15 = r.sensitivity.scenarios.find((s) => s.key === "rent-15")!;
+    expect(rent5.noi).toBeLessThan(base.noi);
+    expect(rent15.noi).toBeLessThan(rent5.noi);
+  });
+
+  it("every stress row reruns the full engine (has its own EGI/OpEx/DSCR, not a shortcut on NOI)", () => {
+    const opex20 = r.sensitivity.scenarios.find((s) => s.key === "opex-20")!;
+    expect(opex20.operatingExpenses).toBeGreaterThan(base.operatingExpenses);
+    expect(opex20.effectiveGrossIncome).toBeCloseTo(base.effectiveGrossIncome, 6); // opex stress doesn't touch income side
+    expect(opex20.noi).toBeCloseTo(opex20.effectiveGrossIncome - opex20.operatingExpenses, 6);
+  });
+
+  it("rehab overrun increases cash invested without touching NOI", () => {
+    const rehab = r.sensitivity.scenarios.find((s) => s.key === "rehab+25")!;
+    expect(rehab.noi).toBeCloseTo(base.noi, 6);
+    expect(rehab.cashInvested).toBeGreaterThan(base.cashInvested);
+  });
+});
+
+describe("exit scenarios (spec §11/§12)", () => {
+  it("provides an independently-computed exit for every required holding period", () => {
+    const r = computeUnderwriting({ ...DEAL, holdYears: 10 });
+    for (const y of [3, 5, 10, 35]) {
+      const s = r.projection.exitScenarios.find((e) => e.holdYears === y);
+      expect(s).not.toBeNull();
+      expect((s as any).holdYears).toBe(y);
+    }
+  });
+
+  it("Year N exit uses a loan balance actually amortized for N years, not the entered hold period's balance", () => {
+    const r = computeUnderwriting({ ...DEAL, holdYears: 10 });
+    const y3 = r.projection.exitScenarios.find((e) => e.holdYears === 3)!;
+    const y10 = r.projection.exitScenarios.find((e) => e.holdYears === 10)!;
+    expect(y3.loanPayoff).toBeGreaterThan(y10.loanPayoff); // less time to pay down principal
+    expect(y3.propertyValue).toBeLessThan(y10.propertyValue); // less time to appreciate
+  });
+
+  it("the entered-hold-period exit scenario matches the primary projection.exit exactly", () => {
+    const r = computeUnderwriting({ ...DEAL, holdYears: 10 });
+    const y10 = r.projection.exitScenarios.find((e) => e.holdYears === 10)!;
+    expect(y10.netProceedsPreTax).toBeCloseTo(r.projection.exit.netProceedsPreTax, 2);
+    expect(y10.grossSalePrice).toBeCloseTo(r.projection.exit.grossSalePrice, 2);
+  });
+});
+
+describe("investor cash flow accounting (spec §15)", () => {
+  it("equity multiple is total positive distributions / total contributed capital, computed independently of IRR", () => {
+    const r = computeUnderwriting(DEAL);
+    const stream = r.projection.preTaxCashflowStream;
+    let contributed = 0;
+    let distributed = 0;
+    for (const cf of stream) {
+      if (cf < 0) contributed += -cf;
+      else distributed += cf;
+    }
+    expect(r.projection.contributedCapital).toBeCloseTo(contributed, 2);
+    expect(r.projection.totalDistributions).toBeCloseTo(distributed, 2);
+    expect(r.projection.equityMultiple).toBeCloseTo(distributed / contributed, 6);
+  });
+
+  it("a downside deal that needs a capital call adds to contributed capital rather than netting against distributions", () => {
+    // Deliberately upside-down deal: any negative-cash-flow year should
+    // enlarge contributedCapital, not just shrink totalDistributions.
+    const r = computeUnderwriting({ ...DEAL, monthlyBaseRent: 900, interestRatePct: 10 });
+    expect(r.projection.contributedCapital).toBeGreaterThan(r.capital.cashInvested);
+  });
+});
+
+describe("reconciliation validation (spec §21)", () => {
+  it("a well-formed deal has zero validation errors", () => {
+    const r = computeUnderwriting(DEAL);
+    expect(r.validationErrors).toHaveLength(0);
+  });
+
+  it("rejects nonsensical inputs instead of silently computing garbage", () => {
+    const r = computeUnderwriting({ ...DEAL, vacancyPct: 250 });
+    expect(r.validationErrors.length).toBeGreaterThan(0);
+  });
+});
+
+describe("income model occupancy classification (spec §3)", () => {
+  it("occupancy-linked other income (parking/petRent) absorbs vacancy loss; non-occupancy-linked (laundry) does not", () => {
+    const withParking = computeUnderwriting({ ...DEAL, otherIncome: { parking: 100 }, vacancyPct: 10 });
+    const withLaundry = computeUnderwriting({ ...DEAL, otherIncome: { laundry: 100 }, vacancyPct: 10 });
+    // Same $1,200/yr gross addition either way, but laundry should net
+    // fully to EGI while parking absorbs the 10% vacancy haircut.
+    expect(withLaundry.income.effectiveGrossIncomeAnnual)
+      .toBeGreaterThan(withParking.income.effectiveGrossIncomeAnnual);
   });
 });
