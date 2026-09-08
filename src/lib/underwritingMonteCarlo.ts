@@ -96,6 +96,10 @@ export interface MonteCarloResult {
   sharpeRatio: number | null;
   sortinoRatio: number | null;
   riskFreeRatePct: number;
+  /** DSCR floor used for probDscrBelowThreshold — echoed so reports can label it truthfully. */
+  dscrThreshold: number;
+  /** Target pre-tax IRR (%) used for probReturnExceedsTarget. */
+  targetReturnPct: number;
 }
 
 function mulberry32(seed: number) {
