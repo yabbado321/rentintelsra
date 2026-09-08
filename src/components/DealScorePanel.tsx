@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { ChevronDown, TrendingUp, Sparkles, Target } from "lucide-react";
+import type { DealScore } from "@/lib/underwriting";
 
-export interface ScoreBreakdown {
-  roi: number;         // 0-40
-  cap: number;         // 0-25
-  dscr: number;        // 0-20
-  onePct: number;      // 0-10
-  cashFlow: number;    // -10 to 5
-}
-
-interface Inputs {
+/**
+ * Presentation-only Deal Score panel.
+ * The score, its categories, maxes and explanation come straight from the
+ * canonical underwriting engine (computeUnderwriting().score). Nothing is
+ * re-scored here — only improvement guidance is derived from the metrics.
+ */
+export interface ScoreInputs {
   roi: number;
   capRate: number;
   dscr: number;
@@ -18,107 +17,51 @@ interface Inputs {
 }
 
 interface DealScorePanelProps {
-  score: number;
-  breakdown: ScoreBreakdown;
-  inputs: Inputs;
+  dealScore: DealScore;
+  inputs: ScoreInputs;
 }
 
-const COMPONENTS: {
-  key: keyof ScoreBreakdown;
-  label: string;
-  max: number;
-  weight: string;
-  describe: (i: Inputs) => string;
-  tip: (i: Inputs) => string | null;
-}[] = [
-  {
-    key: "roi",
-    label: "Cash-on-Cash ROI",
-    max: 40,
-    weight: "40 pts",
-    describe: (i) => `${i.roi.toFixed(1)}% actual · capped at 20% for scoring`,
-    tip: (i) =>
-      i.roi >= 15
-        ? null
-        : i.roi >= 8
-        ? "Push ROI higher — negotiate 3-5% off price or increase rent to add ~4 pts."
-        : "ROI is thin. Lower purchase price, cut rehab, or add unit income (parking, laundry).",
-  },
-  {
-    key: "cap",
-    label: "Cap Rate",
-    max: 25,
-    weight: "25 pts",
-    describe: (i) => `${i.capRate.toFixed(2)}% actual · capped at 10% for scoring`,
-    tip: (i) =>
-      i.capRate >= 7
-        ? null
-        : i.capRate >= 5
-        ? "Trim recurring OpEx (self-manage, shop insurance) to lift cap rate."
-        : "Cap rate is below market — reprice the offer or find higher-rent submarket.",
-  },
-  {
-    key: "dscr",
-    label: "DSCR (lender health)",
-    max: 20,
-    weight: "20 pts",
-    describe: (i) =>
-      i.dscr >= 1.25
-        ? `${i.dscr.toFixed(2)} · full 20 pts (≥1.25)`
-        : i.dscr >= 1.0
-        ? `${i.dscr.toFixed(2)} · 10 pts (1.00–1.24)`
-        : `${i.dscr.toFixed(2)} · 0 pts (<1.00)`,
-    tip: (i) =>
-      i.dscr >= 1.25
-        ? null
-        : "Boost down payment 5%, extend term to 30 yrs, or raise rents to clear 1.25 DSCR.",
-  },
-  {
-    key: "onePct",
-    label: "1% Rule",
-    max: 10,
-    weight: "10 pts",
-    describe: (i) =>
-      i.onePctTest >= 1
-        ? `${i.onePctTest.toFixed(2)}% · full 10 pts`
-        : i.onePctTest >= 0.7
-        ? `${i.onePctTest.toFixed(2)}% · 5 pts`
-        : `${i.onePctTest.toFixed(2)}% · 0 pts`,
-    tip: (i) =>
-      i.onePctTest >= 1
-        ? null
-        : "Aim for monthly rent ≥ 1% of price. Re-check comps or negotiate the price down.",
-  },
-  {
-    key: "cashFlow",
-    label: "Positive Cash Flow",
-    max: 5,
-    weight: "±10 pts",
-    describe: (i) =>
-      i.annualCF > 0
-        ? `+${Math.round(i.annualCF).toLocaleString()}/yr · +5 pts`
-        : `${Math.round(i.annualCF).toLocaleString()}/yr · −10 pts penalty`,
-    tip: (i) =>
-      i.annualCF > 0
-        ? null
-        : "Cash flow is negative — reduce PMI (20% down), refinance, or drop non-essential OpEx.",
-  },
+const TIPS: ((i: ScoreInputs) => string | null)[] = [
+  (i) =>
+    i.roi >= 15
+      ? null
+      : i.roi >= 8
+      ? "Push cash-on-cash higher — negotiate 3-5% off price or increase rent."
+      : "Cash-on-cash is thin. Lower purchase price, cut rehab, or add unit income (parking, laundry).",
+  (i) =>
+    i.capRate >= 7
+      ? null
+      : i.capRate >= 5
+      ? "Trim recurring OpEx (self-manage, shop insurance) to lift cap rate."
+      : "Cap rate is below market — reprice the offer or look at a higher-rent submarket.",
+  (i) =>
+    i.dscr >= 1.25
+      ? null
+      : "Boost down payment 5%, extend term to 30 yrs, or raise rents to clear 1.25 DSCR.",
+  (i) =>
+    i.onePctTest >= 1
+      ? null
+      : "Aim for monthly rent ≥ 1% of price. Re-check comps or negotiate the price down.",
+  (i) =>
+    i.annualCF > 0
+      ? null
+      : "Cash flow is negative — reduce mortgage insurance (20% down), refinance, or drop non-essential OpEx.",
 ];
 
-export default function DealScorePanel({ score, breakdown, inputs }: DealScorePanelProps) {
+export default function DealScorePanel({ dealScore, inputs }: DealScorePanelProps) {
   const [open, setOpen] = useState(false);
+  const score = dealScore.total;
 
   const tier =
-    score >= 85
+    dealScore.verdict === "Excellent"
       ? { label: "Excellent deal", emoji: "🏆", color: "hsl(152 70% 55%)", ring: "ring-success/40" }
-      : score >= 70
+      : dealScore.verdict === "Good"
       ? { label: "Solid deal", emoji: "👍", color: "hsl(152 70% 55%)", ring: "ring-success/30" }
-      : score >= 50
+      : dealScore.verdict === "Marginal"
       ? { label: "Marginal", emoji: "⚠️", color: "hsl(38 95% 60%)", ring: "ring-warning/40" }
       : { label: "High risk", emoji: "🚨", color: "hsl(0 80% 62%)", ring: "ring-destructive/40" };
 
-  const tips = COMPONENTS.map((c) => c.tip(inputs)).filter((t): t is string => Boolean(t));
-  const totalMax = 100;
+  const tips = TIPS.map((t) => t(inputs)).filter((t): t is string => Boolean(t));
   const roundedScore = Math.round(score);
 
   return (
@@ -135,7 +78,7 @@ export default function DealScorePanel({ score, breakdown, inputs }: DealScorePa
               fill="none"
               stroke={tier.color}
               strokeWidth="3"
-              strokeDasharray={`${score} 100`}
+              strokeDasharray={`${Math.max(0, Math.min(100, score))} 100`}
               strokeLinecap="round"
               style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.4,0,0.2,1)" }}
             />
@@ -149,27 +92,26 @@ export default function DealScorePanel({ score, breakdown, inputs }: DealScorePa
         {/* Verdict + CTA */}
         <div className="flex-1 min-w-[240px] space-y-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Deal Score
-            </h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Deal Score</h3>
             <span className="text-[10px] uppercase tracking-widest text-primary/80">Live</span>
           </div>
           <p className="text-2xl font-bold font-display">
             <span className="mr-2">{tier.emoji}</span>
             {tier.label}
           </p>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Weighted composite of ROI (40), Cap Rate (25), DSCR (20), 1% Rule (10), Cash Flow (±10).
-          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{dealScore.explanation}</p>
+          {!dealScore.marketScored && (
+            <p className="text-[11px] text-muted-foreground/80">
+              Market category not scored — no verified market data attached. Score normalised across the remaining categories.
+            </p>
+          )}
           <button
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-glow transition-colors"
           >
             {open ? "Hide breakdown & tips" : "See how we arrived at this score"}
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-            />
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
         </div>
       </div>
@@ -186,25 +128,18 @@ export default function DealScorePanel({ score, breakdown, inputs }: DealScorePa
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Target className="w-4 h-4 text-primary" />
-                <h4 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground">
-                  Score composition
-                </h4>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground">Score composition</h4>
               </div>
               <div className="space-y-2.5">
-                {COMPONENTS.map((c) => {
-                  const raw = breakdown[c.key];
-                  const displayPts = c.key === "cashFlow" ? raw : Math.max(0, raw);
-                  const pct = Math.max(0, Math.min(100, (Math.max(0, raw) / c.max) * 100));
+                {dealScore.categories.map((c) => {
+                  const pct = c.max > 0 ? Math.max(0, Math.min(100, (Math.max(0, c.score) / c.max) * 100)) : 0;
                   return (
                     <div key={c.key} className="space-y-1">
                       <div className="flex items-baseline justify-between text-sm">
                         <span className="font-medium text-foreground">{c.label}</span>
                         <span className="font-mono text-xs text-muted-foreground">
-                          <span className={raw < 0 ? "text-destructive" : "text-foreground"}>
-                            {displayPts > 0 && raw > 0 ? "+" : ""}
-                            {displayPts.toFixed(1)}
-                          </span>
-                          <span className="text-muted-foreground/60"> / {c.weight}</span>
+                          <span className="text-foreground">{c.score.toFixed(1)}</span>
+                          <span className="text-muted-foreground/60"> / {c.max} pts</span>
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-secondary/60 overflow-hidden">
@@ -212,25 +147,20 @@ export default function DealScorePanel({ score, breakdown, inputs }: DealScorePa
                           className="h-full rounded-full transition-all duration-500"
                           style={{
                             width: `${pct}%`,
-                            background:
-                              raw < 0
-                                ? "hsl(var(--destructive))"
-                                : "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary-glow)))",
+                            background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary-glow)))",
                           }}
                         />
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{c.describe(inputs)}</p>
+                      <p className="text-[11px] text-muted-foreground">{c.detail}</p>
                     </div>
                   );
                 })}
               </div>
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Total
-                </span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Total</span>
                 <span className="font-mono text-sm">
                   <span className="font-bold text-foreground">{roundedScore}</span>
-                  <span className="text-muted-foreground/60"> / {totalMax}</span>
+                  <span className="text-muted-foreground/60"> / 100</span>
                 </span>
               </div>
             </div>

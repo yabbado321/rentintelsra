@@ -18,6 +18,7 @@
  */
 
 import type { GuardrailFlag } from "./guardrails";
+export type { GuardrailFlag };
 
 /* ==========================================================================
  * Inputs
