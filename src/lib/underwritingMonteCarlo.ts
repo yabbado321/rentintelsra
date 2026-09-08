@@ -270,5 +270,7 @@ export function runUnderwritingMonteCarlo(
     sharpeRatio: sharpe,
     sortinoRatio: sortino,
     riskFreeRatePct,
+    dscrThreshold,
+    targetReturnPct,
   };
 }
