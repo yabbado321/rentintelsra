@@ -96,154 +96,97 @@ function DealAnalyzerTab() {
   const [appreciation, setAppreciation] = useSessionState("deal.appreciation", 3);
   const [years, setYears] = useSessionState("deal.years", 10);
 
+  /* ======================================================================
+   * CANONICAL UNDERWRITING — single source of truth.
+   * Every metric on this page, in the Deal Score panel, in the Monte Carlo
+   * block and in the exported PDF is read from this one object. Nothing
+   * below recomputes NOI, cash flow, capital stack, LTV/LTC, DSCR, IRR,
+   * equity multiple or exit proceeds.
+   * ====================================================================== */
+  const uwInputs = useMemo<Partial<UnderwritingInputs>>(() => ({
+    purchasePrice: price,
+    downPaymentPct: downPct,
+    interestRatePct: interestRate,
+    loanTermYears: loanTerm,
+    closingCostPct: closingPct,
+    rehabBudget: rehab,
+    arv: arv > 0 ? arv : undefined,
+    holdYears: years,
+    monthlyBaseRent: rent,
+    otherIncome: { other: otherIncome },
+    vacancyPct: vacPct,
+    propertyTaxes: pctOf(taxRatePct),
+    insurance: pctOf(insRatePct),
+    hoaMonthly: hoa,
+    management: pctOf(mgmtPct),
+    maintenance: pctOf(maintPct),
+    capexReserve: pctOf(capexPct),
+    rentGrowthPct: rentGrowth,
+    expenseGrowthPct: expGrowth,
+    appreciationPct: appreciation,
+  }), [price, downPct, interestRate, loanTerm, closingPct, rehab, arv, years, rent, otherIncome,
+       vacPct, taxRatePct, insRatePct, hoa, mgmtPct, maintPct, capexPct,
+       rentGrowth, expGrowth, appreciation]);
+
+  const uw = useMemo(() => computeUnderwriting(uwInputs), [uwInputs]);
+
+  /** Display adapter over the canonical result — renaming only, no math. */
   const results = useMemo(() => {
-    const totalCost = price + rehab + price * (closingPct / 100);
-    const loanAmt = price * (1 - downPct / 100);
-    const cashIn = price * (downPct / 100) + rehab + price * (closingPct / 100);
-    const pmi = downPct < 20 ? (loanAmt * 0.0075) / 12 : 0;
-    const mortgage = calculateMortgage(price, downPct, interestRate, loanTerm);
-    const valueBasis = arv > 0 ? arv : price;
-
-    const propTax = (valueBasis * taxRatePct) / 100 / 12;
-    const insurance = (valueBasis * insRatePct) / 100 / 12;
-    const vacancy = rent * (vacPct / 100);
-    const mgmt = rent * (mgmtPct / 100);
-    const maint = rent * (maintPct / 100);
-    const capex = rent * (capexPct / 100);
-
-    const opEx = propTax + insurance + hoa + mgmt + maint + capex + vacancy; // operating expenses
-    const grossIncome = rent + otherIncome;
-    const effectiveIncome = grossIncome - vacancy;
-    const noi = (effectiveIncome - (propTax + insurance + hoa + mgmt + maint + capex)) * 12;
-    const debtSvc = (mortgage + pmi) * 12;
-    const annualCF = noi - debtSvc;
-
-    const roi = cashIn > 0 ? (annualCF / cashIn) * 100 : 0;
-    const capRate = valueBasis > 0 ? (noi / valueBasis) * 100 : 0;
-    const dscr = debtSvc > 0 ? noi / debtSvc : 0;
-    const ltv = valueBasis > 0 ? (loanAmt / valueBasis) * 100 : 0;
-    const grm = grossIncome > 0 ? valueBasis / (grossIncome * 12) : 0;
-    const onePctTest = (rent / price) * 100;          // > 1% is classic rule
-    const fiftyPctRule = grossIncome * 0.5 * 12;       // implied opex via 50% rule
-    const payback = annualCF > 0 ? cashIn / annualCF : null;
-    const equityMultiple5 = (() => {
-      const v5 = valueBasis * Math.pow(1 + appreciation / 100, 5);
-      let bal = loanAmt;
-      const mRate = interestRate / 100 / 12;
-      for (let m = 0; m < 60 && bal > 0; m++) { const i = bal * mRate; bal -= Math.max(0, mortgage - i); }
-      const equity = v5 - Math.max(0, bal);
-      let cfSum = 0;
-      for (let y = 1; y <= 5; y++) {
-        const r = rent * Math.pow(1 + rentGrowth / 100, y);
-        const ex = (propTax + insurance + hoa + r * ((mgmtPct + maintPct + capexPct + vacPct) / 100)) * Math.pow(1 + expGrowth / 100, y - 1);
-        cfSum += ((r + otherIncome - ex) - mortgage - pmi) * 12;
-      }
-      return cashIn > 0 ? (equity + cfSum) / cashIn : 0;
-    })();
-
-    // Score (ROI 40, Cap 25, DSCR 20, 1% rule 10, CashFlow 5)
-    const roiScore = Math.min(Math.max(roi, 0), 20) / 20 * 40;
-    const capScore = Math.min(Math.max(capRate, 0), 10) / 10 * 25;
-    const dscrScore = dscr >= 1.25 ? 20 : dscr >= 1 ? 10 : 0;
-    const onePctScore = onePctTest >= 1 ? 10 : onePctTest >= 0.7 ? 5 : 0;
-    const cfScore = annualCF > 0 ? 5 : -10;
-    const score = Math.max(0, Math.min(roiScore + capScore + dscrScore + onePctScore + cfScore, 100));
-
+    const exit5 = uw.projection.exitScenarios.find((e) => e.holdYears === 5)
+      ?? uw.projection.exitScenarios[0];
+    const grossIncomeAnnual = uw.income.grossPotentialRentAnnual + uw.income.otherIncomeAnnual;
     const expenseBreakdown = [
-      { name: "Mortgage", value: Math.round(mortgage) },
-      { name: "Property Tax", value: Math.round(propTax) },
-      { name: "Insurance", value: Math.round(insurance) },
-      { name: "HOA", value: Math.round(hoa) },
-      { name: "Management", value: Math.round(mgmt) },
-      { name: "Maintenance", value: Math.round(maint) },
-      { name: "CapEx", value: Math.round(capex) },
-      { name: "Vacancy", value: Math.round(vacancy) },
-      ...(pmi > 0 ? [{ name: "PMI", value: Math.round(pmi) }] : []),
-    ].filter(e => e.value > 0);
-
-    // Multi-year projections w/ amortization
-    let bal = loanAmt;
-    const mRate = interestRate / 100 / 12;
-    const projections = Array.from({ length: years }, (_, i) => {
-      const yr = i + 1;
-      for (let m = 0; m < 12 && bal > 0; m++) {
-        const interest = bal * mRate;
-        bal -= Math.max(0, mortgage - interest);
-      }
-      const projR = rent * Math.pow(1 + rentGrowth / 100, yr);
-      const projExFixed = (propTax + insurance + hoa) * Math.pow(1 + expGrowth / 100, yr - 1);
-      const projVarPct = (mgmtPct + maintPct + capexPct + vacPct) / 100;
-      const projEx = projExFixed + projR * projVarPct;
-      const projV = valueBasis * Math.pow(1 + appreciation / 100, yr);
-      const cf = ((projR + otherIncome - projEx) - mortgage - pmi) * 12;
-      return {
-        year: yr,
-        rent: Math.round(projR),
-        value: Math.round(projV),
-        cashFlow: Math.round(cf),
-        equity: Math.round(projV - Math.max(0, bal)),
-      };
-    });
+      { name: "Mortgage", value: Math.round(uw.debt.monthlyPI) },
+      ...(uw.debt.monthlyMortgageInsurance > 0
+        ? [{ name: "Mortgage Ins.", value: Math.round(uw.debt.monthlyMortgageInsurance) }]
+        : []),
+      ...uw.expenses.lines.map((l) => ({ name: l.label, value: Math.round(l.annual / 12) })),
+      { name: "Vacancy Loss", value: Math.round(uw.income.vacancyLossAnnual / 12) },
+    ].filter((e) => e.value > 0);
 
     return {
-      cashIn, totalCost, mortgage, pmi, loanAmt,
-      noi, annualCF, roi, capRate, dscr, ltv, grm, onePctTest, fiftyPctRule, payback,
-      equityMultiple5, score, expenseBreakdown, projections, valueBasis,
-      scoreBreakdown: { roi: roiScore, cap: capScore, dscr: dscrScore, onePct: onePctScore, cashFlow: cfScore },
+      cashIn: uw.capital.cashInvested,
+      totalCost: uw.capital.totalProjectCost,
+      mortgage: uw.debt.monthlyPI,
+      pmi: uw.debt.monthlyMortgageInsurance,
+      loanAmt: uw.debt.loanAmount,
+      noi: uw.noiAnnual,
+      annualCF: uw.cashFlow.annualAfterCapex,
+      roi: uw.metrics.cashOnCashAfterCapexPct ?? 0,
+      capRate: uw.metrics.capRatePct ?? 0,
+      dscr: uw.metrics.dscr ?? 0,
+      ltv: uw.metrics.ltvPct ?? 0,
+      ltc: uw.metrics.ltcPct ?? 0,
+      grm: uw.metrics.grm ?? 0,
+      onePctTest: uw.metrics.onePctRulePct ?? 0,
+      fiftyPctRule: grossIncomeAnnual * 0.5,
+      breakEvenOccupancy: uw.metrics.breakEvenOccupancyPct,
+      payback: uw.cashFlow.annualAfterCapex > 0 ? uw.capital.cashInvested / uw.cashFlow.annualAfterCapex : null,
+      equityMultiple5: exit5?.equityMultiple ?? null,
+      opExMonthly: uw.expenses.totalOperatingAnnual / 12,
+      valueBasis: arv > 0 ? arv : price,
+      expenseBreakdown,
+      projections: uw.projection.years.map((y) => ({
+        year: y.year,
+        rent: Math.round(y.grossPotentialRent / 12),
+        value: Math.round(y.propertyValue),
+        cashFlow: Math.round(y.cashFlowAfterCapex),
+        equity: Math.round(y.equity),
+      })),
     };
-  }, [price, rehab, arv, closingPct, downPct, interestRate, loanTerm, rent, otherIncome,
-      taxRatePct, insRatePct, hoa, vacPct, mgmtPct, maintPct, capexPct,
-      rentGrowth, expGrowth, appreciation, years]);
+  }, [uw, arv, price]);
 
-  // Full stochastic Monte Carlo (seeded, 2,000 paths keeps the page instant).
-  const monteCarlo = useMemo(() => {
-    const monthlyOtherOpEx = (rent * (mgmtPct / 100)) + hoa;
-    const sim = runSimulation({
-      purchasePrice: price,
-      monthlyRent: rent + otherIncome,
-      monthlyOtherOpEx,
-      annualTaxes: (results.valueBasis * taxRatePct) / 100,
-      annualInsurance: (results.valueBasis * insRatePct) / 100,
-      downPaymentPct: downPct,
-      interestRate,
-      loanTermYears: loanTerm,
-      holdYears: Math.max(3, Math.min(years, 10)),
-      closingCostPct: closingPct,
-      rehabBudget: rehab,
-      iterations: 2000,
-      profile: "balanced",
-      overrides: {
-        rentGrowthMean: rentGrowth,
-        opexInflMean: expGrowth,
-        apprMean: appreciation,
-        vacancyMode: Math.max(1, vacPct),
-        vacancyMax: Math.max(vacPct * 3, 18),
-        maintMedianPct: Math.max(3, maintPct + capexPct),
-      },
-      seed: 20260214,
-    });
-    return {
-      iterations: sim.iterations,
-      probNegativeCF: sim.probNegativeCashFlowYear,
-      expectedIRR: sim.irr.mean,
-      irrP10: sim.irr.p5,
-      irrP90: sim.irr.p95,
-      sharpe: sim.sharpe,
-      sortino: sim.sortino,
-      stdev: sim.roi.stdev,
-      var5: sim.var5,
-      cvar5: sim.cvar5,
-      probLoss: sim.probLoss,
-      confidence: sim.confidence,
-    };
-  }, [results, price, rent, otherIncome, downPct, interestRate, loanTerm, closingPct, rehab,
-      vacPct, mgmtPct, maintPct, capexPct, taxRatePct, insRatePct, hoa,
-      rentGrowth, expGrowth, appreciation, years]);
+  /** Canonical Monte Carlo — perturbs the same engine, never a second model. */
+  const monteCarlo = useMemo(
+    () => runUnderwritingMonteCarlo(uwInputs, { iterations: 1500, seed: 20260214 }),
+    [uwInputs],
+  );
 
   // ===== Guardrails: institutional risk-flag layer =====
   const guardrails = useMemo(() => {
-    const mcSuccess = 100 - monteCarlo.probNegativeCF;
-    const { sharpe, stdev } = { sharpe: monteCarlo.sharpe, stdev: monteCarlo.stdev };
+    const mcSuccess = 100 - monteCarlo.probNegativeCashFlow;
+    const sharpe = monteCarlo.sharpeRatio ?? 0;
+    const stdev = monteCarlo.irr.stdev;
 
     const dci = computeDCI({
       dscr: results.dscr,
@@ -252,80 +195,37 @@ function DealAnalyzerTab() {
       netCashFlow: results.annualCF / 12,
     });
 
-    // Cross-tool inconsistency: currently mgmt fee is calculator-local only.
-    // When a portfolio-level default is added, wire it here.
-    const mgmtInconsistency = null;
-
-    // Scenario returns — approximate from Monte Carlo percentiles
     const flags = collectFlags(
       evaluateSharpe(sharpe, stdev),
-      evaluateLossProbability(monteCarlo.probNegativeCF, monteCarlo.iterations),
+      evaluateLossProbability(monteCarlo.probNegativeCashFlow, monteCarlo.iterations),
       dci.flag,
       validateExpenses({
         mgmtPct, capexPct, vacancyPct: vacPct, maintPct,
         monthlyRent: rent, yearBuilt: activeProperty.yearBuilt,
       }),
-      describeScenarioReturn("Optimistic", monteCarlo.irrP90, results.ltv),
-      describeScenarioReturn("Base", monteCarlo.expectedIRR, results.ltv),
+      describeScenarioReturn("Optimistic", monteCarlo.irr.p90, results.ltv),
+      describeScenarioReturn("Base", monteCarlo.irr.mean, results.ltv),
       results.annualCF < 0 ? evaluateNegativeCashflow("Base", results.annualCF, years) : null,
-      // Pessimistic: apply -3% rent haircut, +5% expense haircut
+      // Pessimistic case comes straight from the canonical stress set.
       (() => {
-        const stressedCF = (rent * 0.97 * 12) - ((rent * (vacPct + mgmtPct + maintPct + capexPct) / 100) * 12 * 1.05)
-          - ((results.valueBasis * (taxRatePct + insRatePct)) / 100)
-          - (results.mortgage + results.pmi) * 12 - hoa * 12;
-        return stressedCF < 0 ? evaluateNegativeCashflow("Pessimistic", stressedCF, years) : null;
+        const worst = uw.sensitivity.scenarios.reduce<number | null>(
+          (min, s) => (min === null || s.annualCashFlow < min ? s.annualCashFlow : min), null);
+        return worst !== null && worst < 0 ? evaluateNegativeCashflow("Pessimistic", worst, years) : null;
       })(),
-      mgmtInconsistency,
+      null,
     );
     return { flags: orderFlags(flags), dci, sharpe, stdev, mcSuccess };
-  }, [results, monteCarlo, mgmtPct, vacPct, maintPct, capexPct, rent, hoa, taxRatePct,
-      insRatePct, years, activeProperty.yearBuilt]);
+  }, [uw, results, monteCarlo, mgmtPct, vacPct, maintPct, capexPct, rent, years, activeProperty.yearBuilt]);
 
   const pdfData: UnderwritingReportData = useMemo(() => ({
     propertyName: propName,
     address: activeProperty.address || propName,
-    purchasePrice: price,
-    cashOnCash: results.roi,
-    capRate: results.capRate,
-    dscr: results.dscr,
-    downPayment: price * (downPct / 100),
-    closingCosts: price * (closingPct / 100),
-    rehab,
-    loanAmount: results.loanAmt,
-    totalCashIn: results.cashIn,
-    grossRent: rent,
-    otherIncome,
-    vacancy: rent * (vacPct / 100),
-    operatingExpenses: (results.valueBasis * (taxRatePct + insRatePct)) / 100 / 12 + hoa
-      + rent * ((mgmtPct + maintPct + capexPct) / 100),
-    noiMonthly: results.noi / 12,
-    debtService: results.mortgage + results.pmi,
-    netCashFlow: results.annualCF / 12,
+    underwriting: uw,
     monteCarlo,
     aiMemo: activeProperty.aiMemo,
     guardrails: guardrails.flags,
     dci: { adjusted: guardrails.dci.adjusted, ceiling: guardrails.dci.ceiling, label: guardrails.dci.label },
-    // Extended underwriting inputs for the 10-page institutional PDF
-    arv: arv > 0 ? arv : price,
-    interestRate,
-    loanTerm,
-    taxRatePct,
-    insRatePct,
-    hoaMonthly: hoa,
-    mgmtPct,
-    maintPct,
-    capexPct,
-    vacancyPct: vacPct,
-    rentGrowth,
-    expGrowth,
-    appreciation,
-    holdYears: years,
-    projections: results.projections,
-    expenseBreakdown: results.expenseBreakdown,
-  }), [propName, price, rehab, arv, downPct, closingPct, rent, otherIncome, vacPct, mgmtPct,
-       maintPct, capexPct, taxRatePct, insRatePct, hoa, interestRate, loanTerm,
-       rentGrowth, expGrowth, appreciation, years, results, monteCarlo,
-       activeProperty.aiMemo, activeProperty.address, guardrails]);
+  }), [propName, uw, monteCarlo, activeProperty.aiMemo, activeProperty.address, guardrails]);
 
 
 
