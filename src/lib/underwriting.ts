@@ -331,6 +331,7 @@ export interface YearRow {
   cashFlowBeforeCapex: number;
   cashFlowAfterCapex: number;
   depreciation: number;
+  accumulatedDepreciation: number;
   taxableIncome: number;
   incomeTax: number;
   afterTaxCashFlow: number;
@@ -348,8 +349,26 @@ export interface ExitResult {
   capitalGainsTax: number;
   depreciationRecaptureTax: number;
   netProceedsAfterTax: number;
+  landBasis: number;
+  depreciableBuildingBasis: number;
   totalDepreciationTaken: number;
   adjustedBasis: number;
+  totalTaxableGain: number;
+  remainingCapitalGain: number;
+  estimatedTaxes: number;
+}
+
+export interface TaxSummary {
+  enabled: boolean;
+  landBasis: number;
+  depreciableBuildingBasis: number;
+  annualDepreciation: number;
+  accumulatedDepreciation: number;
+  adjustedTaxBasisAtSale: number;
+  totalTaxableGain: number;
+  depreciationRecapture: number;
+  remainingCapitalGain: number;
+  estimatedTaxes: number;
 }
 
 export interface ScenarioResult {
@@ -545,14 +564,19 @@ export interface UnderwritingResult {
     irrAfterTaxPct: number | null;
     /** Total positive investor distributions ÷ total contributed capital. */
     equityMultiple: number | null;
+    /** After-tax distributions ÷ after-tax contributed capital, from the actual after-tax stream. */
+    afterTaxEquityMultiple: number | null;
     totalRoiPct: number | null;
     totalCashFlow: number;
     totalDistributions: number;
     contributedCapital: number;
+    afterTaxTotalDistributions: number;
+    afterTaxContributedCapital: number;
     appreciationGain: number;
     principalPaydown: number;
     endingEquity: number;
     exit: ExitResult;
+    tax: TaxSummary;
     /** Explicitly-labelled holding-period exits (3 / 5 / 10 / 35 years). */
     exitScenarios: ExitScenario[];
   };
