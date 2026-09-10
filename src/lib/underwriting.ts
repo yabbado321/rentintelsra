@@ -331,6 +331,7 @@ export interface YearRow {
   cashFlowBeforeCapex: number;
   cashFlowAfterCapex: number;
   depreciation: number;
+  accumulatedDepreciation: number;
   taxableIncome: number;
   incomeTax: number;
   afterTaxCashFlow: number;
@@ -348,8 +349,26 @@ export interface ExitResult {
   capitalGainsTax: number;
   depreciationRecaptureTax: number;
   netProceedsAfterTax: number;
+  landBasis: number;
+  depreciableBuildingBasis: number;
   totalDepreciationTaken: number;
   adjustedBasis: number;
+  totalTaxableGain: number;
+  remainingCapitalGain: number;
+  estimatedTaxes: number;
+}
+
+export interface TaxSummary {
+  enabled: boolean;
+  landBasis: number;
+  depreciableBuildingBasis: number;
+  annualDepreciation: number;
+  accumulatedDepreciation: number;
+  adjustedTaxBasisAtSale: number;
+  totalTaxableGain: number;
+  depreciationRecapture: number;
+  remainingCapitalGain: number;
+  estimatedTaxes: number;
 }
 
 export interface ScenarioResult {
@@ -545,14 +564,19 @@ export interface UnderwritingResult {
     irrAfterTaxPct: number | null;
     /** Total positive investor distributions ÷ total contributed capital. */
     equityMultiple: number | null;
+    /** After-tax distributions ÷ after-tax contributed capital, from the actual after-tax stream. */
+    afterTaxEquityMultiple: number | null;
     totalRoiPct: number | null;
     totalCashFlow: number;
     totalDistributions: number;
     contributedCapital: number;
+    afterTaxTotalDistributions: number;
+    afterTaxContributedCapital: number;
     appreciationGain: number;
     principalPaydown: number;
     endingEquity: number;
     exit: ExitResult;
+    tax: TaxSummary;
     /** Explicitly-labelled holding-period exits (3 / 5 / 10 / 35 years). */
     exitScenarios: ExitScenario[];
   };
@@ -1241,6 +1265,116 @@ function validateReconciliation(
  * Long-term projection, exit and taxes
  * ========================================================================== */
 
+interface TaxBasisCalculation {
+  landBasis: number;
+  depreciableBuildingBasis: number;
+  totalTaxBasisBeforeDepreciation: number;
+  annualDepreciation: number;
+}
+
+/** Tax basis is intentionally independent from project cost and financing uses. */
+function calculateTaxBasis(i: UnderwritingInputs, cap: ReturnType<typeof capitalFor>): TaxBasisCalculation {
+  const landAllocation = Math.max(0, Math.min(100, i.landAllocationPct ?? 20)) / 100;
+  // The aggregate closing-cost input is treated as an acquisition cost. Loan
+  // points, lender fees and holding costs are financing/carry costs, not basis.
+  const netAcquisitionBasis = Math.max(0, i.purchasePrice + cap.closingCosts - cap.sellerCredits);
+  const landBasis = netAcquisitionBasis * landAllocation;
+  const buildingAcquisitionBasis = netAcquisitionBasis - landBasis;
+  const capitalImprovements = Math.max(0, cap.rehab + cap.rehabContingency);
+  const depreciableBuildingBasis = buildingAcquisitionBasis + capitalImprovements;
+  const depreciationYears = i.depreciationYears ?? 27.5;
+  const annualDepreciation = i.taxModelEnabled && depreciationYears > 0
+    ? depreciableBuildingBasis / depreciationYears
+    : 0;
+  return {
+    landBasis,
+    depreciableBuildingBasis,
+    totalTaxBasisBeforeDepreciation: landBasis + depreciableBuildingBasis,
+    annualDepreciation,
+  };
+}
+
+/** Depreciation is capped at the remaining depreciable basis. */
+function calculateDepreciationForYear(
+  taxBasis: TaxBasisCalculation,
+  accumulatedDepreciation: number,
+): number {
+  return Math.max(
+    0,
+    Math.min(taxBasis.annualDepreciation, taxBasis.depreciableBuildingBasis - accumulatedDepreciation),
+  );
+}
+
+/** Rental income tax remains below NOI, debt service and operating cash flow. */
+function calculateRentalIncomeTax(
+  noi: number,
+  mortgageInterest: number,
+  depreciation: number,
+  i: UnderwritingInputs,
+): { taxableRentalIncome: number; estimatedIncomeTax: number } {
+  const taxableRentalIncome = noi - mortgageInterest - depreciation;
+  // Do not assume passive-loss usability without taxpayer-specific inputs.
+  const estimatedIncomeTax = i.taxModelEnabled
+    ? Math.max(0, taxableRentalIncome) * ((i.marginalTaxRatePct ?? 0) / 100)
+    : 0;
+  return { taxableRentalIncome, estimatedIncomeTax };
+}
+
+interface SaleTaxCalculation {
+  adjustedTaxBasisAtSale: number;
+  totalTaxableGain: number;
+  depreciationRecapture: number;
+  remainingCapitalGain: number;
+  depreciationRecaptureTax: number;
+  capitalGainsTax: number;
+  estimatedTaxes: number;
+}
+
+/** Computes sale taxes from amount realized, adjusted basis and depreciation actually taken. */
+function calculateSaleTaxes(
+  i: UnderwritingInputs,
+  taxBasis: TaxBasisCalculation,
+  grossSalePrice: number,
+  sellingCosts: number,
+  accumulatedDepreciation: number,
+): SaleTaxCalculation {
+  const adjustedTaxBasisAtSale = Math.max(
+    taxBasis.landBasis,
+    taxBasis.totalTaxBasisBeforeDepreciation - accumulatedDepreciation,
+  );
+  const amountRealized = grossSalePrice - sellingCosts;
+  const totalTaxableGain = Math.max(0, amountRealized - adjustedTaxBasisAtSale);
+  const depreciationRecapture = Math.min(accumulatedDepreciation, totalTaxableGain);
+  const remainingCapitalGain = Math.max(0, totalTaxableGain - depreciationRecapture);
+  const depreciationRecaptureTax = i.taxModelEnabled ? depreciationRecapture * 0.25 : 0;
+  const capitalGainsTax = i.taxModelEnabled
+    ? remainingCapitalGain * ((i.capitalGainsRatePct ?? 15) / 100)
+    : 0;
+  return {
+    adjustedTaxBasisAtSale,
+    totalTaxableGain,
+    depreciationRecapture,
+    remainingCapitalGain,
+    depreciationRecaptureTax,
+    capitalGainsTax,
+    estimatedTaxes: depreciationRecaptureTax + capitalGainsTax,
+  };
+}
+
+function summarizeInvestorCashFlowStream(stream: number[]) {
+  let contributedCapital = 0;
+  let totalDistributions = 0;
+  for (const cashFlow of stream) {
+    if (cashFlow < 0) contributedCapital += -cashFlow;
+    else totalDistributions += cashFlow;
+  }
+  return {
+    contributedCapital,
+    totalDistributions,
+    equityMultiple: contributedCapital > 0 ? totalDistributions / contributedCapital : null,
+  };
+}
+
 /**
  * Runs the year-by-year projection (income, debt, depreciation, exit) for an
  * explicit holding period. Shared by the primary projection (i.holdYears)
@@ -1255,11 +1389,8 @@ function runProjectionForYears(
   years: number,
 ): Omit<UnderwritingResult["projection"], "exitScenarios"> {
   const schedule = amortize(debt.loanAmount, i.interestRatePct, i.loanTermYears, years);
-
-  const depreciableBasis = i.purchasePrice * (1 - (i.landAllocationPct ?? 20) / 100) + i.rehabBudget;
-  const depYears = i.depreciationYears ?? 27.5;
-  const annualDepreciation = i.taxModelEnabled ? depreciableBasis / depYears : 0;
-  const marginal = (i.marginalTaxRatePct ?? 0) / 100;
+  const taxBasis = calculateTaxBasis(i, cap);
+  let accumulatedDepreciation = 0;
 
   const rows: YearRow[] = [];
   const preTax: number[] = [-cap.cashInvested];
@@ -1277,8 +1408,11 @@ function runProjectionForYears(
     const cfBefore = s.noi - debtService;
     const cfAfter = cfBefore - s.capex;
     const propertyValue = i.purchasePrice * Math.pow(1 + i.appreciationPct / 100, y);
-    const taxableIncome = s.noi - am.interest - annualDepreciation;
-    const incomeTax = i.taxModelEnabled ? Math.max(0, taxableIncome) * marginal : 0;
+    const depreciation = calculateDepreciationForYear(taxBasis, accumulatedDepreciation);
+    accumulatedDepreciation += depreciation;
+    const rentalTax = calculateRentalIncomeTax(s.noi, am.interest, depreciation, i);
+    const taxableIncome = rentalTax.taxableRentalIncome;
+    const incomeTax = rentalTax.estimatedIncomeTax;
     const atcf = cfAfter - incomeTax;
 
     rows.push({
@@ -1295,7 +1429,8 @@ function runProjectionForYears(
       capex: s.capex,
       cashFlowBeforeCapex: cfBefore,
       cashFlowAfterCapex: cfAfter,
-      depreciation: annualDepreciation,
+      depreciation,
+      accumulatedDepreciation,
       taxableIncome,
       incomeTax,
       afterTaxCashFlow: atcf,
@@ -1314,15 +1449,14 @@ function runProjectionForYears(
   const loanPayoff = last.loanBalance;
   const netProceedsPreTax = grossSalePrice - sellingCosts - loanPayoff;
 
-  const totalDepreciationTaken = annualDepreciation * years;
-  const adjustedBasis = cap.allInCost - totalDepreciationTaken;
-  const gain = Math.max(0, grossSalePrice - sellingCosts - adjustedBasis);
-  const recaptureBase = Math.min(totalDepreciationTaken, gain);
-  const depreciationRecaptureTax = i.taxModelEnabled ? recaptureBase * 0.25 : 0;
-  const capitalGainsTax = i.taxModelEnabled
-    ? Math.max(0, gain - recaptureBase) * ((i.capitalGainsRatePct ?? 15) / 100)
-    : 0;
-  const netProceedsAfterTax = netProceedsPreTax - depreciationRecaptureTax - capitalGainsTax;
+  const saleTax = calculateSaleTaxes(
+    i,
+    taxBasis,
+    grossSalePrice,
+    sellingCosts,
+    accumulatedDepreciation,
+  );
+  const netProceedsAfterTax = netProceedsPreTax - saleTax.estimatedTaxes;
 
   preTax[preTax.length - 1] += netProceedsPreTax;
   afterTax[afterTax.length - 1] += netProceedsAfterTax;
@@ -1340,14 +1474,8 @@ function runProjectionForYears(
    * denominator instead of silently netting against distributions.
    *   Total Positive Investor Distributions / Total Investor Capital Contributed
    */
-  let contributedCapital = cap.cashInvested; // initial investment (always a contribution)
-  let totalDistributions = 0;
-  for (let idx = 1; idx < preTax.length; idx++) {
-    const cf = preTax[idx];
-    if (cf < 0) contributedCapital += -cf;
-    else totalDistributions += cf;
-  }
-  const equityMultiple = contributedCapital > 0 ? totalDistributions / contributedCapital : null;
+  const preTaxReturns = summarizeInvestorCashFlowStream(preTax);
+  const afterTaxReturns = summarizeInvestorCashFlowStream(afterTax);
 
   return {
     years: rows,
@@ -1355,11 +1483,14 @@ function runProjectionForYears(
     afterTaxCashflowStream: afterTax,
     irrPreTaxPct: irrPre === null ? null : irrPre * 100,
     irrAfterTaxPct: irrPost === null ? null : irrPost * 100,
-    equityMultiple,
-    totalRoiPct: equityMultiple === null ? null : (equityMultiple - 1) * 100,
+    equityMultiple: preTaxReturns.equityMultiple,
+    afterTaxEquityMultiple: afterTaxReturns.equityMultiple,
+    totalRoiPct: preTaxReturns.equityMultiple === null ? null : (preTaxReturns.equityMultiple - 1) * 100,
     totalCashFlow,
-    totalDistributions,
-    contributedCapital,
+    totalDistributions: preTaxReturns.totalDistributions,
+    contributedCapital: preTaxReturns.contributedCapital,
+    afterTaxTotalDistributions: afterTaxReturns.totalDistributions,
+    afterTaxContributedCapital: afterTaxReturns.contributedCapital,
     appreciationGain: grossSalePrice - i.purchasePrice,
     principalPaydown: debt.loanAmount - last.loanBalance,
     endingEquity: last.equity,
@@ -1369,11 +1500,28 @@ function runProjectionForYears(
       sellingCosts,
       loanPayoff,
       netProceedsPreTax,
-      capitalGainsTax,
-      depreciationRecaptureTax,
+      capitalGainsTax: saleTax.capitalGainsTax,
+      depreciationRecaptureTax: saleTax.depreciationRecaptureTax,
       netProceedsAfterTax,
-      totalDepreciationTaken,
-      adjustedBasis,
+      landBasis: taxBasis.landBasis,
+      depreciableBuildingBasis: taxBasis.depreciableBuildingBasis,
+      totalDepreciationTaken: accumulatedDepreciation,
+      adjustedBasis: saleTax.adjustedTaxBasisAtSale,
+      totalTaxableGain: saleTax.totalTaxableGain,
+      remainingCapitalGain: saleTax.remainingCapitalGain,
+      estimatedTaxes: saleTax.estimatedTaxes,
+    },
+    tax: {
+      enabled: Boolean(i.taxModelEnabled),
+      landBasis: taxBasis.landBasis,
+      depreciableBuildingBasis: taxBasis.depreciableBuildingBasis,
+      annualDepreciation: taxBasis.annualDepreciation,
+      accumulatedDepreciation,
+      adjustedTaxBasisAtSale: saleTax.adjustedTaxBasisAtSale,
+      totalTaxableGain: saleTax.totalTaxableGain,
+      depreciationRecapture: saleTax.depreciationRecapture,
+      remainingCapitalGain: saleTax.remainingCapitalGain,
+      estimatedTaxes: saleTax.estimatedTaxes,
     },
   };
 }
